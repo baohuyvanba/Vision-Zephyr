@@ -1,15 +1,24 @@
+# =================================================================================================
+# File       : vis_zephyr/conversation.py
+# Description: Manages conversation history and prompt templating.
+# =================================================================================================
+
 import dataclasses
 from enum import auto, Enum
 from typing import List, Tuple
 
 class SeparatorStyle(Enum):
-    """Different separator styles."""
+    """
+    Different separator styles, used in conversation formatting.
+    """
     SINGLE = auto()
     TWO    = auto()
 
 @dataclasses.dataclass
 class Conversation:
-    """Keep track of conservation history"""
+    """
+    Keep track of conservation history
+    """
     system: str
     roles: List[str]
     messages: List[List[str]]
@@ -17,43 +26,39 @@ class Conversation:
     separator_style: SeparatorStyle = SeparatorStyle.TWO
     separator_01: str = " "
     separator_02: str = "</s>"
-    version: str = "Unknown"
-    skip_next: bool = False
+    version: str      = "Unknown"
+    skip_next: bool   = False
 
-    def get_prompt(self):
+    def get_prompt(self) -> str:
+        """Get the formatted conversation prompt: <|system|>...</s><|user|>...</s><|assistant|>... """
         messages = self.messages
         if len(messages) > 0 and type(messages[0][1]) is Tuple:
             messages = self.messages.copy()
             init_role, init_message = messages[0]
+            
+            #Ensure the first message contain image and also do not duplicate it
             init_message = init_message[0].replace("<image>", "").strip()
-            messages[0] = (init_role, "<image>\n" + init_message)
+            messages[0]  = (init_role, "<image>\n" + init_message)
 
         if self.separator_style == SeparatorStyle.TWO:
+            #Format as "<|system|>\n{system_message}</s><|role|>\n{role_message}</s>..."
             separators = [self.separator_01, self.separator_02]
-            ret = self.system + separators[0]
+            ret = f"<|system|>\n{self.system}{separators[1]}"
             for i, (role, message) in enumerate(messages):
                 if message:
-                    if type(message) is Tuple:
+                    if type(message) is tuple:
                         message, _, _ = message
-                    ret += role + ": " + message + separators[i % 2]
+                    
+                    ret += f"<|{role}|>\n{message}{separators[1]}"
                 else:
-                    ret += role + ": "
-        elif self.separator_style == SeparatorStyle.SINGLE:
-            ret = self.system + self.separator_01
-            for role, message in messages:
-                if message:
-                    if type(message) is Tuple:
-                        message, _, _ = message
-                    ret += role + ": " + message + self.separator_01
-                else:
-                    ret += role + ": "
+                    #Assistan's turn to respond
+                    ret += f"<|{role}|>\n"
+            return ret
         else:
             raise ValueError(f"Unknown separator style: {self.separator_style}")
-        
-        return ret
     
     def append_message(self, role, message):
-        """Append a message to the conversation."""
+        """Append new message to the conversation history"""
         self.messages.append([role, message])
 
     def copy(self):
@@ -72,15 +77,15 @@ class Conversation:
 #system="A chat between a curious user and an artificial intelligence assistant. "
 #       "The assistant gives helpful, detailed, and polite answers to the user's questions.",
 conv_zephyr_v1 = Conversation(
-    system = "You are an AI assistant specialized in Visual Commonsense Reasoning."
+    system = "You are an AI assistant specialized in Visual Commonsense Reasoning and able to understand the visual content that the user provides,"
              "Given an image and a question, your task is to provide an accurate answer, followed by a concise, logical explanation of your reasoning based on visual cues and common sense. Your response must clearly separate the answer and the explanation.",
-    roles = ("USER", "ASSISTANT"),
+    roles = ("user", "assistant"),
     messages = (),
     offset = 0,
     separator_style = SeparatorStyle.TWO,
     separator_01 = " ",
     separator_02 = "</s>",
-    version = "v1",
+    version = "zephyr-v1",
 )
 
 #Default conversation
@@ -95,8 +100,8 @@ templates = {
 if __name__ == "__main__":
     # For testing purposes
     conv = default_conversation.copy()
-    conv.append_message("USER", "What is in the image?")
-    conv.append_message("ASSISTANT", "This is a test image.")
+    conv.append_message("user", "What is in the image?")
+    conv.append_message("assistant", "This is a test image.")
     print(conv.get_prompt())
     print(conv.messages)
     print(conv.version)

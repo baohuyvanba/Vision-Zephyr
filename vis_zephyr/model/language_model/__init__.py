@@ -1,1 +1,1 @@
-from .vis_zephyr_mistral import VisZephyrForCausalLM, VisZephyrConfig
+from .vis_zephyr import VisZephyrForCausalLM, VisZephyrConfig

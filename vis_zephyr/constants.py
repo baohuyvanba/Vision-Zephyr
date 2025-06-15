@@ -1,12 +1,18 @@
+# =================================================================================================
+# File        : vis_zephyr/constants.py
+# Description : This file defines constant values used throughout the project.
+# =================================================================================================
 CONTROLLER_HEART_BEAT_EXPIRATION = 30
 WORKER_HEART_BEAT_INTERVAL = 15
 
 LOGDIR = "."
 
+#Ignore specific tokens during Loss calculation
 IGNORE_INDEX = -100
+#Marking the image token in the token sequence
 IMAGE_TOKEN_INDEX = -200
 
-#DEFAULT TOKENSTOKENS
+#DEFAULT TOKENS
 DEFAULT_IMAGE_TOKEN       = "<image>"
 DEFAULT_IMAGE_PATCH_TOKEN = "<im_patch>"
 DEFAULT_IM_START_TOKEN    = "<im_start>"

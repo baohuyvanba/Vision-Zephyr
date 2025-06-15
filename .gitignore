@@ -26,3 +26,6 @@ Thumbs.db
 
 # Log files
 *.log
+
+# Model Weights
+models/

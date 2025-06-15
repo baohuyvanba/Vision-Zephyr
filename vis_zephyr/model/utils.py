@@ -20,7 +20,6 @@ class KeywordsStoppingCriteria(StoppingCriteria):
                 return True
         return False
 
-
 def preprocess_image(image_path, image_processor):
     """Load and preprocess image using given image_processor."""
     from PIL import Image

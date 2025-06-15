@@ -1,0 +1,26 @@
+Vision-Zephyr/
+├── vis_zephyr/
+│   ├── [v] constants.py 
+│   ├── [v] conversation.py
+│   ├── model/
+│   │   ├── __init__.py
+│   │   ├── builder.py
+│   │   ├── mm_utils.py
+│   │   ├── vis_zephyr_arch.py
+│   │   ├── language_model/
+│   │   │   ├── __init__.py
+│   │   │   └── vis_zephyr.py
+│   │   ├── multimodal_projector/
+│   │   │   ├── __init__.py
+│   │   │   └── builder.py
+│   │   └── vision_encoder/
+│   │       ├── __init__.py
+│   │       ├── builder.py
+│   │       └── clip_encoder.py
+│   ├── serve/
+│   │   └── cli.py
+│   └── train/
+│       ├── __init__.py
+│       ├── train.py
+│       └── vis_zephyr_trainer.py
+└── 
