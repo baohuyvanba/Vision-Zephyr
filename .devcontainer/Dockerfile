@@ -50,13 +50,18 @@ RUN wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -
     rm miniconda.sh && \
     conda init --all
 
-# Initial Conda Environment
-RUN conda create -n geni-llava python=3.10 -y && \
+ENV PATH="/usr/local/cuda-12.9/bin:$PATH"
+ENV LD_LIBRARY_PATH="/usr/local/cuda-12.9/lib64:${LD_LIBRARY_PATH}"
+
+# Git Clone & Environment initialization
+RUN git clone https://username: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@github.com/baohuyvanba/geni.git /home/vscode/VisZephyr &&\
+    cd /home/vscode/VisZephyr && \
+    conda env create -f env.yaml -n viszephyr && \
     conda clean -afy
 
-ENV PATH="/usr/local/cuda-12.9/bin:$PATH"
-# ENV LD_LIBRARY_PATH="/usr/local/cuda-12.9/lib64:${LD_LIBRARY_PATH}"
-
-RUN git clone https://username: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@github.com/baohuyvanba/geni.git /home/vscode/Geni && \
-    conda run -n geni-llava pip install transformers torch pillow datasets accelerate && \
-    conda run -n geni-llava pip install flash-attn --no-build-isolation
+# Data
+# RUN mkdir -p /home/vscode/VisZephyr/playground/data/Pretrain && \
+#     cd /home/vscode/VisZephyr/playground/data/Pretrain && \
+#     wget -c https://huggingface.co/datasets/liuhaotian/Pretrain/resolve/main/blip_laion_cc_sbu_558k_meta.json && \
+#     wget -c https://huggingface.co/datasets/liuhaotian/Pretrain/resolve/main/blip_laion_cc_sbu_558k.json && \
+#     wget -c https://huggingface.co/datasets/liuhaotian/Pretrain/resolve/main/images.zip
