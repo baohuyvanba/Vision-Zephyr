@@ -54,9 +54,9 @@ ENV PATH="/usr/local/cuda-12.9/bin:$PATH"
 ENV LD_LIBRARY_PATH="/usr/local/cuda-12.9/lib64:${LD_LIBRARY_PATH}"
 
 # Git Clone & Environment initialization
-RUN git clone https://username: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@github.com/baohuyvanba/geni.git /home/vscode/VisZephyr &&\
+RUN git clone https://username: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@github.com/baohuyvanba/Vision-Zephyr.git /home/vscode/VisZephyr &&\
     cd /home/vscode/VisZephyr && \
-    conda env create -f env.yaml -n viszephyr && \
+    conda env create -f environment.yaml -n viszephyr && \
     conda clean -afy
 
 # Data

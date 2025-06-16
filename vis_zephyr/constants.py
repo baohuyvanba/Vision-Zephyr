@@ -8,7 +8,7 @@ WORKER_HEART_BEAT_INTERVAL = 15
 LOGDIR = "."
 
 #Ignore specific tokens during Loss calculation
-IGNORE_INDEX = -100
+IGNORE_INDEX      = -100
 #Marking the image token in the token sequence
 IMAGE_TOKEN_INDEX = -200
 

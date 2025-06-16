@@ -155,6 +155,7 @@ class VisZephyrTrainer(Trainer):
                 world_size = self.args.world_size * self.args.gradient_accumulation_steps,  #World size (number of GPUs); Gradient accumulation steps (to avoid too large batches)
                 lengths    = lengths,                                                       #List of lengths for each sample in the dataset
                 group_by_modality = True,
+                generator = torch.Generator(device = 'cpu').manual_seed(self.args.seed)
             )
         else:
             #Default trainer sampler

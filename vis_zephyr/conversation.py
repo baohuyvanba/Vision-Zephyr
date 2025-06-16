@@ -11,8 +11,7 @@ class SeparatorStyle(Enum):
     """
     Different separator styles, used in conversation formatting.
     """
-    SINGLE = auto()
-    TWO    = auto()
+    ZEPHYR = auto()
 
 @dataclasses.dataclass
 class Conversation:
@@ -23,14 +22,17 @@ class Conversation:
     roles: List[str]
     messages: List[List[str]]
     offset: int
-    separator_style: SeparatorStyle = SeparatorStyle.TWO
-    separator_01: str = " "
-    separator_02: str = "</s>"
+    separator_style: SeparatorStyle = SeparatorStyle.ZEPHYR
+    separator_01: str = "</s>"
+    separator_02: str = None
     version: str      = "Unknown"
     skip_next: bool   = False
 
     def get_prompt(self) -> str:
-        """Get the formatted conversation prompt: <|system|>...</s><|user|>...</s><|assistant|>... """
+        """
+        Get the formatted conversation prompt:
+            <|system|>...</s><|user|>...</s><|assistant|>...</s>
+        """
         messages = self.messages
         if len(messages) > 0 and type(messages[0][1]) is Tuple:
             messages = self.messages.copy()
@@ -40,19 +42,19 @@ class Conversation:
             init_message = init_message[0].replace("<image>", "").strip()
             messages[0]  = (init_role, "<image>\n" + init_message)
 
-        if self.separator_style == SeparatorStyle.TWO:
-            #Format as "<|system|>\n{system_message}</s><|role|>\n{role_message}</s>..."
+        if self.separator_style == SeparatorStyle.ZEPHYR:
+            #Formating
             separators = [self.separator_01, self.separator_02]
-            ret = f"<|system|>\n{self.system}{separators[1]}"
+            ret = f"<|system|>\n{self.system}{separators[0]}"      #<|system|>{message}</s>
             for i, (role, message) in enumerate(messages):
                 if message:
                     if type(message) is tuple:
                         message, _, _ = message
                     
-                    ret += f"<|{role}|>\n{message}{separators[1]}"
+                    ret += f"<|{role}|>\n{message}{separators[0]}" #<|user|>{prompt}</s>
                 else:
                     #Assistan's turn to respond
-                    ret += f"<|{role}|>\n"
+                    ret += f"<|{role}|>\n" #-> Get respone
             return ret
         else:
             raise ValueError(f"Unknown separator style: {self.separator_style}")
@@ -82,9 +84,9 @@ conv_zephyr_v1 = Conversation(
     roles = ("user", "assistant"),
     messages = (),
     offset = 0,
-    separator_style = SeparatorStyle.TWO,
-    separator_01 = " ",
-    separator_02 = "</s>",
+    separator_style = SeparatorStyle.ZEPHYR,
+    separator_01 = "</s>",
+    separator_02 = None,
     version = "zephyr-v1",
 )
 
@@ -102,6 +104,9 @@ if __name__ == "__main__":
     conv = default_conversation.copy()
     conv.append_message("user", "What is in the image?")
     conv.append_message("assistant", "This is a test image.")
+    print("--- Generated Prompt ---")
     print(conv.get_prompt())
+    print("\n--- Messages ---")
     print(conv.messages)
+    print("\n--- Version ---")
     print(conv.version)

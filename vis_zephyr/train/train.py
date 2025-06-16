@@ -5,17 +5,14 @@
 #                - Handles argument parsing, model/tokenizer loading, LoRA setup;
 #                - Include data preprocessing, and orchestrates the training process.
 # =================================================================================================
-from calendar import c
 import os
 import copy
 from dataclasses import dataclass, field
 import json
-import logging
 import pathlib
-from re import A
-from typing import Dict, Optional, Sequence, List
+from posixpath import sep
+from typing import Dict, Optional, Sequence
 
-from attr import has
 import torch
 import transformers
 from torch.utils.data import Dataset
@@ -90,6 +87,11 @@ class ModelArguments:
         default  = "flat",
         metadata = {"help": "Type of patch merging for multimodal vision tower."}
     )
+    #ADDING
+    mm_grid_pinpoints: Optional[str] = field(
+        default=None,
+        metadata={"help": "A list of possible resolutions for processing high-resolution images."}
+    )
 
 @dataclass
 class DataArguments:
@@ -129,8 +131,6 @@ class TrainingArguments(transformers.TrainingArguments):
         metadata = {"help": "Maximum sequence length for the model."}
     )
     
-    bits: int = field(default=16, metadata={"help": "Precision: 16, 8, or 4."})
-    
     #Multimodal Arguments
     mm_projector_lr: Optional[float] = field(
         default  = None,
@@ -142,12 +142,18 @@ class TrainingArguments(transformers.TrainingArguments):
     )
 
     #LoRA Arguments
-    lora_enable: bool = False
-    lora_r: int = 64
-    lora_alpha: int = 16
+    lora_enable : bool  = False
+    lora_r      : int   = 64
+    lora_alpha  : int   = 16
     lora_dropout: float = 0.05
     lora_weight_path: str = ""
-    lora_bias: str = "none"
+    lora_bias   : str   = "none"
+
+    #Quantization Arguments
+    bits: int = field(
+        default  = 16,
+        metadata = {"help": "Precision: 16, 8, or 4."}
+    )
 
 # ===================================================================================================================================
 # SAVING & STATE HANDLING
@@ -289,10 +295,10 @@ def preprocess_zephyr(
         "gpt"  : conv.roles[1]
     }
 
-    #Apply prompt templates
+    # --- 1 --- Apply prompt templates
     conversations = []
     for i, source in enumerate(sources):
-        #If the first message is not from the human ('user') -> skip.
+        #If the first message is not from the human ('user') in dataset -> skip.
         if roles[source[0]["from"]] != conv.roles[0]:
             source = source[1:]
 
@@ -300,14 +306,18 @@ def preprocess_zephyr(
         #Append system message if available
         for j, sentence in enumerate(source):
             role = roles[sentence["from"]]
-            assert role == conv.roles[j % 2], f"Conversation role mismatch at turn {j} for sample {i}."
+            assert role == conv.roles[j % 2], f"Conversation role mismatch."
             conv.append_message(role, sentence["value"])
         conversations.append(conv.get_prompt())
 
-    #Tokenize conversations
+    # --- 2 --- Tokenize conversations
     if has_image:
         input_ids = [
-            tokenizer_image_token(prompt, tokenizer, return_tensors = 'pt')
+            tokenizer_image_token(
+                prompt         = prompt,
+                tokenizer      = tokenizer,
+                return_tensors = 'pt'
+            )
             for prompt in conversations
         ]
     else:
@@ -320,52 +330,57 @@ def preprocess_zephyr(
             truncation     = True,
         ).input_ids
 
+    #Copy input_ids -> targets (labels)
     targets = copy.deepcopy(input_ids)
 
-    #Mask targets -> Only calculate Loss for Assistant responses
-    assistant_role_token = f"<|{conv.roles[1]}|>\n"
+    # --- 3 --- Mask targets -> Only calculate Loss for Assistant responses
+    assistant_separator = f"{conv.separator_01}<|{conv.roles[1]}|>\n" #"</s><|assistant|>\n"
 
     for conservation, target in zip(conversations, targets):
+        #Total length of the conversation
         total_length = int(target.ne(tokenizer.pad_token_id).sum())
 
-        turns = conservation.split(conv.separator_02)
-        current_length = 0
-        target[:1] = IGNORE_INDEX  #Ignore the first token (BOS token)
+        #Split conversation into turns (each turn is a Assistant respone/or User prompt)
+        turns = conservation.split(conv.separator_01)  #-> ['<|system|>...', '<|user|>...', '<|assistant|>...', '<|user|>...', ...]
+        current_length          = 1                    #Start from 1 to ignore the first token (BOS token)
+        target[:current_length] = IGNORE_INDEX         #Assign 'IGNORE_INDEX' -> BOS token
 
         for i, turn in enumerate(turns):
             #Skip empty turns
-            if turn == "":
+            if turn == "" or not turn:
                 break
-            turn_with_separator = turn + conv.separator_02
-
-            #ASSISTANT response
-            parts = turn_with_separator.split(assistant_role_token)
-            if len(parts) != 2:
-                turn_length = len(tokenizer(turn_with_separator, tokenizer))
-                targets[current_length + 1:current_length + turn_length] = IGNORE_INDEX
-                current_length += turn_length
-                continue
             
-            #HUMAN response
-            user_part, assistant_part = parts
-            user_part += assistant_role_token
+            #Re-addding separator to the turn -> correct tokenized length: '<|user|>...</s>' or '<|assistant|>...</s>'
+            turn_with_separator = turn + conv.separator_01
 
-            #Fisrt turn must have Image
-            if has_image and i == 0:
-                instruction_length = len(tokenizer_image_token(user_part, tokenizer))
-                turn_length        = len(tokenizer_image_token(part_with_separator, tokenizer))
+            #We will MASK (IGNORE_INDEX) system and user messages, so we only need to calculate loss for assistant responses
+            not_assistant_turn = turn.startswith("<|system|>") or turn.startswith(conv.roles[0])
+
+            if has_image and '<image>' in turn_with_separator:
+                #Tokenize turn with image
+                turn_length = len(tokenizer_image_token(
+                    prompt    = turn_with_separator,
+                    tokenizer = tokenizer
+                ))
+                # instruction_length = len(tokenizer_image_token(parts[0], tokenizer)) - 2 #Remove <image> tokens
             else:
-                instruction_length = len(tokenizer(user_part, return_tensors = 'pt').input_ids[0])
-                turn_length        = len(tokenizer(turn_with_separator, return_tensors = 'pt').input_ids[0])
+                #Tokenize turn without image
+                turn_length = len(tokenizer(turn_with_separator, return_tensors = 'pt').input_ids)
+            
+            #Apply IGNORE_INDEX to system and user messages
+            if not_assistant_turn:
+                target[current_length:current_length + turn_length] = IGNORE_INDEX
 
-            target[current_length:current_length + instruction_length] = IGNORE_INDEX
-            current_length += instruction_length
+            #Move the cursor to the next turn
+            current_length += turn_length
 
+        #Apply IGNORE_INDEX to the rest of the tokens
         target[current_length:] = IGNORE_INDEX
 
+        #If Current != Total length -> Something went wrong -> Mask all tokens for safety
         if current_length < tokenizer.model_max_length:
             if current_length != total_length:
-                target[:] = IGNORE_INDEX  #If the conversation is too short, mask all tokens
+                target[:] = IGNORE_INDEX
                 rank0_print(f"WARNING: Tokenization mismatch (cur_len={cur_len}, total_len={total_len}). Ignoring sample.")
 
     return dict(
@@ -381,7 +396,7 @@ def preprocess(
     """
     Main Preprocessing function that handles both text and multimodal data.
     """
-    if conv_lb.default_conversation.version == "zephyr_v1":
+    if conv_lb.templates["default"].separator_style == conv_lb.SeparatorStyle.ZEPHYR:
         return preprocess_zephyr(sources, tokenizer, has_image=has_image)
     
     raise ValueError(f"Unsupported conversation version: {conv_lb.default_conversation.version}. Supported: zephyr_v1.")
@@ -414,56 +429,81 @@ class LazySupervisedDataset(Dataset):
         if isinstance(i, int):
             sources = [sources]
         
-        #All data is assumed to be multimodal (for Vis-Zephyr)
-        image_file   = self.list_data_dict[i]['image']
-        image_folder = self.data_args.image_folder
-        processor    = self.data_args.image_processor
-        #Open the image
-        image = Image.open(os.path.join(image_folder, image_file)).convert('RGB')
+        #All data is multimodal (for Vis-Zephyr)
+        if 'image' in sources[0]:
+            image_file   = self.list_data_dict[i]['image']
+            image_folder = self.data_args.image_folder
+            processor    = self.data_args.image_processor
+            #Open the image
+            image = Image.open(os.path.join(image_folder, image_file)).convert('RGB')
+            
+            #Apply padding to make image square
+            if self.data_args.image_aspect_ratio == 'pad':
+                from vis_zephyr.model.mm_utils import expand2square
+                image = expand2square(image, tuple(int(x * 255) for x in processor.image_mean))
+            
+            #Preprocess the image using the CLIP processor
+            image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
+            #Preprocess conversations
+            conversations = copy.deepcopy([e["conversations"] for e in sources])
         
-        #Apply padding to make image square
-        if self.data_args.image_aspect_ratio == 'pad':
-            from vis_zephyr.model.mm_utils import expand2square
-            image = expand2square(image, tuple(int(x * 255) for x in processor.image_mean))
-        
-        #Preprocess the image using the CLIP processor
-        image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
-        
-        #Preprocess conversations
-        conversations = copy.deepcopy([e["conversations"] for e in sources])
+        #Text-only conversations
+        else:
+            conversations = copy.deepcopy([e["conversations"] for e in sources])
+
         conversations = preprocess_multimodal(conversations, self.data_args)
         
         #Tokenize conversations and create labels
         data_dict = preprocess_zephyr(conversations, self.tokenizer)
         data_dict = dict(input_ids=data_dict["input_ids"][0], labels=data_dict["labels"][0])
-        data_dict['image'] = image
+        
+        if 'image' in sources[0]:
+            data_dict['image'] = image
+        else:
+            crop_size = self.data_args.image_processor.crop_size
+            data_dict['image'] = torch.zeros(3, crop_size['height'], crop_size['width'])
         
         return data_dict
 
 @dataclass
 class DataCollatorForSupervisedDataset(object):
     """
-    Collate examples for supervised fine-tuning.
+    Collate examples for supervised fine-tuning, handling padding and batching.
     """
     tokenizer: transformers.PreTrainedTokenizer
 
     def __call__(self, instances: Sequence[Dict]) -> Dict[str, torch.Tensor]:
-        input_ids, labels = tuple([instance[key] for instance in instances] for key in ("input_ids", "labels"))
+        input_ids, labels = tuple([
+                instance[key]
+                for instance in instances
+            ] for key in ("input_ids", "labels")
+        )
         
+        #Pad input_ids to the longest sequence in the batch
         input_ids = torch.nn.utils.rnn.pad_sequence(
-            input_ids, batch_first=True, padding_value=self.tokenizer.pad_token_id)
+            input_ids,
+            batch_first   = True,
+            padding_value = self.tokenizer.pad_token_id
+        )
+        #Pad labels with IGNORE_INDEX 
         labels = torch.nn.utils.rnn.pad_sequence(
-            labels, batch_first=True, padding_value=IGNORE_INDEX)
+            labels,
+            batch_first   = True,
+            padding_value = IGNORE_INDEX
+        )
         
+        #Truncate to model max length
         input_ids = input_ids[:, :self.tokenizer.model_max_length]
-        labels = labels[:, :self.tokenizer.model_max_length]
+        labels    = labels[:, :self.tokenizer.model_max_length]
         
+        #Batch dictionary: input_ids, labels, and attention_mask
         batch = dict(
-            input_ids=input_ids,
-            labels=labels,
-            attention_mask=input_ids.ne(self.tokenizer.pad_token_id),
+            input_ids      = input_ids,
+            labels         = labels,
+            attention_mask = input_ids.ne(self.tokenizer.pad_token_id),
         )
 
+        #If images are present, stack them
         if 'image' in instances[0]:
             images = [instance['image'] for instance in instances]
             if all(x is not None and x.shape == images[0].shape for x in images):
@@ -477,85 +517,159 @@ def make_supervised_data_module(tokenizer: transformers.PreTrainedTokenizer, dat
     """
     Make dataset and collator for supervised fine-tuning.
     """
-    train_dataset = LazySupervisedDataset(tokenizer=tokenizer, data_path=data_args.data_path, data_args=data_args)
-    data_collator = DataCollatorForSupervisedDataset(tokenizer=tokenizer)
-    return dict(train_dataset=train_dataset, eval_dataset=None, data_collator=data_collator)
+    train_dataset = LazySupervisedDataset(
+        tokenizer = tokenizer,
+        data_path = data_args.data_path,
+        data_args = data_args
+    )
+    data_collator = DataCollatorForSupervisedDataset(tokenizer = tokenizer)
+
+    return dict(
+        train_dataset = train_dataset,
+        eval_dataset  = None,
+        data_collator = data_collator
+    )
 
 # ====================================================================================================================================
 # MAIN TRAINING FUNCTION
 # ====================================================================================================================================
-def train():
+def train(attn_implementation: str = "flash_attention_2"):
     global local_rank
     parser = transformers.HfArgumentParser((ModelArguments, DataArguments, TrainingArguments))
+    
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
     local_rank = training_args.local_rank
 
-    # Set up model
+    if attn_implementation is not None:
+        rank0_print(f"Using attention implementation: {attn_implementation}")
+
+    # --- 1 --- Set up: Model Loading and Configuration
+    #Datatype
+    compute_dtype = (
+        torch.float16 if training_args.fp16 else (torch.bfloat16 if training_args.bf16 else torch.float32)
+    )
+    ###HOOK: Quantization
+    
+    #Loading model
     model = VisZephyrForCausalLM.from_pretrained(
-        model_args.model_name_or_path,
+        model_path          = model_args.model_name_or_path,
         cache_dir           = training_args.cache_dir,
-        #attn_implementation = "flash_attention_2",
+        attn_implementation = attn_implementation,
+        torch_dtype         = compute_dtype,
+        #**bnb_model_from_pretrained_args
     )
     model.config.use_cache = False
 
     if model_args.freeze_backbone:
         model.model.requires_grad_(False)
+    
+    ###HOOK: Quantization training
+    
+    # --- 2 --- LoRA Setup
+    if training_args.lora_enable:
+        rank0_print("Enabling LoRA for the model.")
+        lora_config = LoraConfig(
+            r              = training_args.lora_r,
+            lora_alpha     = training_args.lora_alpha,
+            target_modules = find_all_linear_names(model),
+            lora_dropout   = training_args.lora_dropout,
+            bias           = training_args.lora_bias,
+            task_type      = "CAUSAL_LM",
+        )
+        model = get_peft_model(model, lora_config)
+        model.print_trainable_parameters()
 
-    # Set up tokenizer
+    # --- 3 --- Set up tokenizer
     tokenizer = transformers.AutoTokenizer.from_pretrained(
         model_args.model_name_or_path,
-        cache_dir=training_args.cache_dir,
-        model_max_length=training_args.model_max_length,
-        padding_side="right",
-        use_fast=False,
+        cache_dir        = training_args.cache_dir,
+        model_max_length = training_args.model_max_length,
+        padding_side     = "right",
+        use_fast         = False,
     )
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token # Mistral/Zephyr doesn't have a pad token
     
     conv_lb.default_conversation = conv_lb.conv_templates[model_args.version]
 
-    # Initialize vision modules
-    model.get_model().initialize_vision_modules(model_args=model_args)
+    # --- 4 --- Initialize Vision modules
+    model.get_model().initialize_vision_modules(
+        model_args = model_args,
+    )
     vision_tower = model.get_model().get_vision_tower()
-    vision_tower.to(device=training_args.device, dtype=torch.bfloat16 if training_args.bf16 else torch.float16)
+    vision_tower.to(
+        device = training_args.device,
+        dtype  = torch.bfloat16 if training_args.bf16 else torch.float16
+    )
     data_args.image_processor = vision_tower.image_processor
+    data_args.is_multimodal = True
 
-    # Configure model for multimodal training
-    model.config.mm_vision_select_feature = data_args.is_multimodal = True
-    
-    # Logic for multi-stage training
-    if model_args.tune_mm_mlp_adapter:
+    model.config.mm_vision_select_feature = data_args.is_multimodal
+
+    # --- 5 --- Configs Multimodal Project Training
+    model.config.tune_mm_mlp_adapter = training_args.tune_mm_mlp_adapter = model_args.tune_mm_mlp_adapter
+    #Training Projector - freeze backbone
+    if model.args.tune_mm_mlp_adapter:
         rank0_print("Stage 1: Pre-training multimodal projector.")
         model.requires_grad_(False)
         for p in model.get_model().mm_projector.parameters():
             p.requires_grad = True
-    
-    if model_args.lora_enable:
-        rank0_print("Stage 2: Fine-tuning with LoRA.")
+    #Freeze MLP adapter
+    model.config.freeze_mm_mlp_adapter = training_args.freeze_mm_mlp_adapter
+    if training_args.freeze_mm_mlp_adapter:
+        for p in model.get_model().mm_projector.parameters():
+            p.require_grad = False
+
+    # --- 6 --- LoRA Configuration
+    if training_args.lora_enable:
+        rank0_print("Enabling LoRA for the model.")
         from peft import LoraConfig, get_peft_model
         lora_config = LoraConfig(
-            r=training_args.lora_r,
-            lora_alpha=training_args.lora_alpha,
-            target_modules=find_all_linear_names(model),
-            lora_dropout=training_args.lora_dropout,
-            bias=training_args.lora_bias,
-            task_type="CAUSAL_LM",
+            r              = training_args.lora_r,
+            lora_alpha     = training_args.lora_alpha,
+            target_modules = find_all_linear_names(model),
+            lora_dropout   = training_args.lora_dropout,
+            bias           = training_args.lora_bias,
+            task_type      = "CAUSAL_LM",
         )
         model = get_peft_model(model, lora_config)
+        model.print_trainable_parameters()
 
-    model.initialize_vision_tokenizer(model_args, tokenizer=tokenizer)
-    
-    # Load data and start training
-    data_module = make_supervised_data_module(tokenizer=tokenizer, data_args=data_args)
-    trainer = VisZephyrTrainer(model=model, tokenizer=tokenizer, args=training_args, **data_module)
+    # --- 7 --- Initialize special visual tokens
+    model.initialize_vision_tokenizer(
+        model_args = model_args,
+        tokenizer  = tokenizer,
+    )
 
+    # --- 8 --- Set up Data Module & Trainer
+    data_module = make_supervised_data_module(
+        tokenizer = tokenizer,
+        data_args = data_args
+    )
+    trainer = VisZephyrTrainer(
+        model     = model,
+        tokenizer = tokenizer,
+        args      = training_args,
+        **data_module
+    )
+
+    # --- 9 --- TRAINING
     if list(pathlib.Path(training_args.output_dir).glob("checkpoint-*")):
-        trainer.train(resume_from_checkpoint=True)
+        rank0_print("Resuming training from the last checkpoint.")
+        trainer.train(resume_from_checkpoint = True)
     else:
+        rank0_print("Starting training from scratch.")
         trainer.train()
-    
+
     trainer.save_state()
-    safe_save_model_for_hf_trainer(trainer=trainer, output_dir=training_args.output_dir)
+    model.config.use_cache = True
+    safe_save_model_for_hf_trainer(
+        trainer    = trainer,
+        output_dir = training_args.output_dir
+    )
 
 if __name__ == "__main__":
     train()
+
+# if __name__ == "__main__":
+#     train(attn_implementation = "flash_attention_2")

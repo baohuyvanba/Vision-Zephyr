@@ -10,7 +10,7 @@
 DS_CONFIG_FILE = ./scripts/zero2.json
 LLM_BACKBONE   = "HuggingFaceH4/zephyr-7b-beta"
 VISION_ENCODER = "openai/clip-vit-large-patch14-336"
-DATA_PATH      = "./playground/data/LLaVA-Pretrain/blip_laion_cc_sbu_558k.json"
+DATA_PATH      = "./playground/data/LLaVA-Pretrain/blip.json"
 IMAGE_PATH     = "./playground/data/LLaVA-Pretrain/images"
 OUTPUT_DIR     = "./checkpoints/vis_zephyr-v1-7b-pretrain"
 

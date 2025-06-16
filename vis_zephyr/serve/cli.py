@@ -22,7 +22,6 @@ from vis_zephyr.utils import disable_torch_init
 #=========================================================================================================================
 def load_image(image_file: str) -> Image.Image:
     """Load image from a file path or URL."""
-    
     #Get image from URL
     if image_file.startswith('http://') or image_file.startswith('https://'):
         response = requests.get(image_file)
@@ -37,7 +36,7 @@ def load_image(image_file: str) -> Image.Image:
 #=========================================================================================================================
 def main(args):
     """Command line interface."""
-    #Initialize the model
+    # --- 1 --- Initialize the model
     disable_torch_init()
     model_name = get_model_name_from_path(args.model_path)
 
@@ -52,34 +51,40 @@ def main(args):
         device     = "cuda",
     )
 
-    #Conversation template
-    # if args.conv_mode is None:
-    #     args.conv_mode = "zephyr_v1"
-    conversation  = templates["zephyr_v1"].copy()
+    # --- 2 --- Conversation Setup
+    conv_mode = "zephyr_v1"
+    if args.conv_mode is not None and args.conv_mode != conv_mode:
+        print(f"[WARNING] The auto-inferred conversation mode is {conv_mode}, but --conv-mode is set to {args.conv_mode}. Using {conv_mode}.")
+        args.conv_mode = conv_mode
+    
+    conversation  = templates[conv_mode].copy()
     roles         = conversation.roles
 
-    #Load and process the image
+    # --- 3 --- Image Processing
     image = load_image(args.image_file)
     image_tensor = process_images(
         images          = image,
         image_processor = image_processor,
         model_config    = model.config
     )
+    #Move the image tensor to the correct device and dtype
     if isinstance(image_tensor, list):
         image_tensor = [img.to(model.device, dtype = torch.float16) for img in image_tensor]
     else:
         image_tensor = image_tensor.to(model.device, dtype = torch.float16)
 
-    #INTERACTIVE CHAT LOOP
+    # --- 4 --- INTERACTIVE CHAT LOOP
     while True:
         try:
             user_input = input(f"{roles[0]}: ")
         except EOFError:
             user_input = ""
+        #Exit condition
         if not user_input or user_input.lower() in ["exit", "quit"]:
             print("Exiting chat.")
             break
-
+        
+        #Print the assistant's role
         print(f"{roles[1]}: ", end = "")
 
         #USER INPUT
@@ -98,7 +103,7 @@ def main(args):
 
         #ASSISTANT RESPONSE placeholder
         conversation.append_message(conversation.roles[1], None)
-        prompt = conversation.get_prompt()
+        prompt = conversation.get_prompt() #Get: "<|system|>...</s><|user|>...</s><|assistant|>...</s>..." -> Model
 
         #Tokenize the prompt (with image) and add the image token
         input_ids = tokenize_image_token(
@@ -108,13 +113,15 @@ def main(args):
             return_tensor     = 'pt',
         ).unsqueeze(0).to(model.device)
 
-        stop_str = conversation.separator_01 if conversation.separator_style != SeparatorStyle.TWO else conversation.separator_02
+        #Stopping criteria setup
+        stop_str = conversation.separator_01 if conversation.separator_style == SeparatorStyle.ZEPHYR else conversation.separator_02
         keywords = [stop_str]
         stopping_criteria = KeywordsStoppingCriteria(
             keywords  = keywords,
             tokenizer = tokenizer,
             input_ids = input_ids
         )
+        #Real-time text streaming setup
         streamer = TextStreamer(
             tokenizer = tokenizer,
             skip_prompt = True,

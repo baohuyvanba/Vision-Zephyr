@@ -150,7 +150,7 @@ class VisZephyrMetaForCausalLM(ABC):
         if vision_tower is None or images is None or input_ids.shape[1] == 1:
             return input_ids, position_ids, attention_mask, past_key_values, None, labels
 
-        #EMBEDDING IMAGE: Image -> Features -> Projected Features ----------------------------------------------------------------------
+        # --- 1 --- EMBEDDING IMAGE: Image -> Features -> Projected Features ----------------------------------------------------------------------
         if type(images) is list or images.ndim == 5:
             #If images is a list of tensors or a 5D tensor -> process them separately
             # - images can be: (Batch, C, H, W) or (Batch, Num_Patches, C, H_patch, W_patch) with dim = 5
@@ -176,26 +176,32 @@ class VisZephyrMetaForCausalLM(ABC):
             #If images is a single tensor (C, H, W) - only 1 image
             image_features = self.encode_images(images)
 
-        # COMBINE TEXT + IMAGE EMBEDDINGS ---------------------------------------------------------------------------------------------
+        # --- 2 --- COMBINE TEXT + IMAGE EMBEDDINGS ---------------------------------------------------------------------------------------------
         
         #Dummy Tensors
         _labels         = labels
         _position_ids   = position_ids
         _attention_mask = attention_mask
+        
         if attention_mask is None:
-            attention_mask = torch.ones_like(input_ids, dtype=torch.bool)
+            attention_mask = torch.ones_like(input_ids, dtype = torch.bool)
         else:
             attention_mask = attention_mask.bool()
+        
         if position_ids is None:
             position_ids   = torch.arange(0, input_ids.shape[1], dtype=torch.long, device=input_ids.device)
         if labels is None:
             labels         = torch.full_like(input_ids, IGNORE_INDEX)
 
-        #Replacing IMAGE_TOKEN_INDEX = image features in input_ids
-        new_input_embeds = [] #Contain batch of new input embeddings
-        new_labels       = [] #Contain batch of new labels       
-        
+        #Replacing IMAGE_TOKEN_INDEX = Image Features (input_ids)
+        new_input_embeds = [] #batch of new input embeddings
+        new_labels       = [] #batch of new labels       
         cur_image_indice = 0  #Current index for image features
+
+        #Remove padding if attention_mask is provided
+        input_ids  = [cur_input_ids[cur_attention_mask] for cur_input_ids, cur_attention_mask in zip(input_ids, attention_mask)]
+        labels     = [curent_labels[cur_attention_mask] for curent_labels, cur_attention_mask in zip(labels, attention_mask)]
+
         for batch_idx, cur_input_ids in enumerate(input_ids):
             #Check if there is an 'IMAGE_TOKEN_INDEX' (placeholder) in the current input_ids
             num_image_token = (cur_input_ids == IMAGE_TOKEN_INDEX).sum()
@@ -278,7 +284,7 @@ class VisZephyrMetaForCausalLM(ABC):
 
         #Finalize
         if _attention_mask is not None:
-            padded_attn_mask = padded_attn_mask.to(dtype=_attention_mask.dtype)
+            attention_mask = attention_mask.to(dtype=_attention_mask.dtype)
         
         return (
             None,
@@ -349,7 +355,7 @@ class VisZephyrMetaForCausalLM(ABC):
     # Utility Functions
     #----------------------------------------------------------------------------------------------------------------------------------
 
-    #Process Patches
+    #Process Patches of High-Resolution Images
     def _process_image_patches(
         self,
         batched_image_features,
@@ -363,10 +369,11 @@ class VisZephyrMetaForCausalLM(ABC):
 
         if mm_patch_merge_type == 'flat':
             #Flatten the image features for each patch in the batch.
-            batched_image_feature = [
+            batched_image_features = [
                 feature.flatten(0, 1)
                 for feature in batched_image_features
             ]
+            return batched_image_features
         elif mm_patch_merge_type.startswith('spatial'):
             #Process the image features as spatial patches.
             new_features = []
