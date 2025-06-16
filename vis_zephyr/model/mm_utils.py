@@ -155,6 +155,7 @@ class KeywordsStoppingCriteria(StoppingCriteria):
         self.keywords    = keywords
         self.keyword_ids = []
         self.max_length  = 0
+
         for keyword in keywords:
             current_keyword_ids = tokenizer(keyword).input_ids
             
@@ -166,7 +167,7 @@ class KeywordsStoppingCriteria(StoppingCriteria):
                 self.max_length = len(current_keyword_ids)
             self.keyword_ids.append(torch.tensor(current_keyword_ids))
         
-        self.tokenizer = tokenizer
+        self.tokenizer    = tokenizer
         self.start_length = input_ids.shape[1]
 
     def __call__(

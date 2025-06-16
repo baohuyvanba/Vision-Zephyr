@@ -1,43 +1,52 @@
 #!/bin/bash
-# =================================================================================================
-# Script: pretrain.sh
-# Description: Stage 1 Pre-training script for Vision-Zephyr.
-#              This stage focuses exclusively on training the multimodal projector to align
-#              the vision encoder with the frozen language model.
-# =================================================================================================
+# =======================================================================================
+#
+#       SCRIPT FOR STAGE 1 PRETRAINING (Vision-Zephyr)
+#
+# Purpose: Train the Multimodal Projector to connect the Vision Encoder with the LLM.
+# In this stage, we will:
+#   - LLM Backbone (Zephyr) -> Freeze
+#   - Vision Encoder (CLIP) -> Freeze
+#   - Multimodal Projector (MLP) -> Train
+# =======================================================================================
 
 # --- Configuration ---
-DS_CONFIG_FILE = ./scripts/zero2.json
-LLM_BACKBONE   = "HuggingFaceH4/zephyr-7b-beta"
-VISION_ENCODER = "openai/clip-vit-large-patch14-336"
-DATA_PATH      = "./playground/data/LLaVA-Pretrain/blip.json"
-IMAGE_PATH     = "./playground/data/LLaVA-Pretrain/images"
-OUTPUT_DIR     = "./checkpoints/vis_zephyr-v1-7b-pretrain"
+DEEPSPEED_CONFIG  = "./scripts/zero2.json"
+MODEL_NAME        = "HuggingFaceH4/zephyr-7b-beta"
+VISION_TOWER_NAME = "openai/clip-vit-large-patch14-336"
 
-# --- DeepSpeed Launch Command ---
-deepspeed --include localhost:0,1,2,3 vis_zephyr/train/train_mem.py \
-    --deepspeed ${DS_CONFIG_FILE} \
-    --model_name_or_path ${LLM_BACKBONE} \
+DATA_ROOT         = "./playground/data/pretrain"
+PRETRAIN_DATA     = "${DATA_ROOT}/blip.json"
+
+# --- Training Arguments ---
+LEARNING_RATE     = 2e-3
+OUTPUT_DIR        = "./checkpoints/vis-zephyr-7b-pretrain-stage1"
+
+# --- RUN ---
+deepspeed --include localhost:0,1 --master_port 29501 vis_zephyr/train/train.py \
+    --deepspeed ${DEEPSPEED_CONFIG} \
+    --model_name_or_path ${MODEL_NAME} \
     --version zephyr_v1 \
-    --data_path ${DATA_PATH} \
-    --image_folder ${IMAGE_PATH} \
-    --vision_tower ${VISION_ENCODER} \
+    --data_path ${PRETRAIN_DATA} \
+    --image_folder ${DATA_ROOT}/images \
+    --vision_tower ${VISION_TOWER_NAME} \
     --mm_projector_type mlp2x_gelu \
     --tune_mm_mlp_adapter True \
+    --freeze_backbone True \
     --mm_vision_select_layer -2 \
     --mm_use_im_start_end False \
-    --mm_use_im_patch_token False \
+    --mm_use_im_patch_token True \
     --bf16 True \
     --output_dir ${OUTPUT_DIR} \
     --num_train_epochs 1 \
-    --per_device_train_batch_size 16 \
+    --per_device_train_batch_size 8 \
     --per_device_eval_batch_size 4 \
     --gradient_accumulation_steps 2 \
     --evaluation_strategy "no" \
     --save_strategy "steps" \
     --save_steps 24000 \
     --save_total_limit 1 \
-    --learning_rate 1e-3 \
+    --learning_rate ${LEARNING_RATE} \
     --weight_decay 0. \
     --warmup_ratio 0.03 \
     --lr_scheduler_type "cosine" \

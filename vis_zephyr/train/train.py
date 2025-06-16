@@ -334,7 +334,10 @@ def preprocess_zephyr(
     targets = copy.deepcopy(input_ids)
 
     # --- 3 --- Mask targets -> Only calculate Loss for Assistant responses
-    assistant_separator = f"{conv.separator_01}<|{conv.roles[1]}|>\n" #"</s><|assistant|>\n"
+    system_role_token    = "<|system|>\n"
+    user_role_token      = f"<|{conv.roles[0]}|>\n" #<|user|>\n
+    assistant_role_token = f"<|{conv.roles[1]}|>\n" #<|assistant|>\n
+    assistant_prompt_len = len(tokenizer(assistant_role_token, return_tensors='pt').input_ids[0])
 
     for conservation, target in zip(conversations, targets):
         #Total length of the conversation
@@ -353,23 +356,26 @@ def preprocess_zephyr(
             #Re-addding separator to the turn -> correct tokenized length: '<|user|>...</s>' or '<|assistant|>...</s>'
             turn_with_separator = turn + conv.separator_01
 
-            #We will MASK (IGNORE_INDEX) system and user messages, so we only need to calculate loss for assistant responses
-            not_assistant_turn = turn.startswith("<|system|>") or turn.startswith(conv.roles[0])
+            #MASK (IGNORE_INDEX) system + user -> Only Calculate loss for assistant responses
+            not_assistant_turn = system_role_token in turn or user_role_token in turn
 
             if has_image and '<image>' in turn_with_separator:
-                #Tokenize turn with image
+            #Tokenize turn with image
                 turn_length = len(tokenizer_image_token(
                     prompt    = turn_with_separator,
                     tokenizer = tokenizer
                 ))
                 # instruction_length = len(tokenizer_image_token(parts[0], tokenizer)) - 2 #Remove <image> tokens
             else:
-                #Tokenize turn without image
+            #Tokenize turn without image
                 turn_length = len(tokenizer(turn_with_separator, return_tensors = 'pt').input_ids)
             
             #Apply IGNORE_INDEX to system and user messages
             if not_assistant_turn:
                 target[current_length:current_length + turn_length] = IGNORE_INDEX
+            else:
+                #Apply IGNORE_INDEX to assistant_tokens <|assistant|>\n
+                target[current_length:current_length + assistant_prompt_len] = IGNORE_INDEX
 
             #Move the cursor to the next turn
             current_length += turn_length
