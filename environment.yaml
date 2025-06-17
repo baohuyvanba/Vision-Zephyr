@@ -86,6 +86,7 @@ dependencies:
       - nvidia-nvtx-cu12==12.6.77
       - packaging==25.0
       - pandas==2.3.0
+      - peft==0.15.2
       - pillow==11.2.1
       - propcache==0.3.1
       - psutil==7.0.0

@@ -8,10 +8,10 @@ from typing import List, Tuple
 import torch
 from PIL import Image
 
-#Select the best fit resolution from a list of possible resolutions.
+#Select the best fit resolution from a list of possible resolutions --------------------------------------------------------------------
 def select_best_fit_resolution(
-        original_resolution: Tuple[int, int],
-        possible_resolutions: List[Tuple[int, int]],
+    original_resolution : Tuple[int, int],
+    possible_resolutions: List[Tuple[int, int]],
 ) -> Tuple[int, int]:
     """
     Select the best fit resolution from a list of possible resolutions.
@@ -19,11 +19,12 @@ def select_best_fit_resolution(
     """
     ori_width, ori_height = original_resolution
     
-    best_fit_res          = None
-    # Maximum effective resolution achieved by fitting original image -> possible resolution (without being cropped or scaled down excessively)
-    max_effective_res     = 0              #to Maximize
-    # Minimum wasted resolution (difference between original and possible resolution)
-    min_wasted_res        = float('inf')   #to Minimize
+    best_fit_res      = None
+    #Maximum effective resolution achieved by fitting original image -> possible resolution
+    # (without being cropped or scaled down excessively)
+    max_effective_res = 0              #to Maximize
+    #Minimum wasted resolution (difference between original and possible resolution)
+    min_wasted_res    = float('inf')   #to Minimize
 
     for w, h in possible_resolutions:
         #Calulate the Scaling factor to fit: get min scaling -> "fit-within"
@@ -41,11 +42,11 @@ def select_best_fit_resolution(
         ):
             max_effective_res = effective_res
             min_wasted_res    = wasted_res
-            best_fit_res = (w, h)
+            best_fit_res      = (w, h)
         
-        return best_fit_res
+    return best_fit_res
 
-#Resize and pad an image to a target resolution.
+#Resize and pad an image to a target resolution ----------------------------------------------------------------------------------------
 def resize_pad_image(
         image: Image.Image,
         target_res: Tuple[int, int],
@@ -68,7 +69,7 @@ def resize_pad_image(
 
     return new_image
 
-#Divide an image into patches of specified size.
+#Divide an image into patches of specified size ---------------------------------------------------------------------------------------
 def divide_to_patches(
         image: Image.Image,
         patch_size: Tuple[int, int],
@@ -85,7 +86,7 @@ def divide_to_patches(
             patches.append(patch)
     return patches
 
-#Calculate the grid shape based on the image size, grid pinpoints, and patch size.
+#Calculate the grid shape based on the image size, grid pinpoints, and patch size -----------------------------------------------------
 def calculate_grid_shape(
         image_size    : Tuple[int, int],
         grid_pinpoints: str, #List of potential grid resolutions
@@ -104,38 +105,41 @@ def calculate_grid_shape(
     
     return (w // patch_size, h // patch_size)
 
-#Process an image with any resolution, resizing and padding it -> return tensor of patches.
+#Process an image with any resolution, resizing and padding it -> return tensor of patches --------------------------------------------
 def process_any_resolution_image(
-    image: Image.Image,
-    processor: object,
+    image         : Image.Image,
+    processor     : object,
     grid_pinpoints: str,
 ) -> torch.Tensor:
     """
-    Process an image with any resolution:
+    Process an image with any resolution.
     """
     if isinstance(grid_pinpoints, list):
-        possible_res = grid_pinpoints
+        possible_resolution = grid_pinpoints
     else:
-        possible_res = ast.literal_eval(grid_pinpoints)
+        possible_resolution = ast.literal_eval(grid_pinpoints) #Use ast to parse string to list
 
-    #Resize and Pad Original Image -> Divide into patches
+    #Get the best fit resolution
     best_fit_res = select_best_fit_resolution(
         original_resolution  = image.size,
-        possible_resolutions = possible_res
+        possible_resolutions = possible_resolution
     )
+    #Resize image with padding to best fit resolution
     image_padded = resize_pad_image(
         image      = image,
         target_res = best_fit_res
     )
-    patches_from_image = divide_to_patches(image_padded, processor.crop_size['height'])
-
-    #Resize original image
+    #Divide padded image into patches
+    patches_from_image = divide_to_patches(
+        image      = image_padded,
+        patch_size = processor.crop_size['height']
+    )
+    #Resize original image (base image) -> to the shortest edge of the crop size
     resized_original_image = image.resize(
         (processor.crop_size['shortest_edge'], processor.crop_size['shortest_edge']),
         Image.Resampling.LANCZOS
     )
-
-    #Resized Image and Image Patches
+    #List of Patches = [Resized Image] and list of Image Patches -> Preprocess them
     patches = [resized_original_image] + patches_from_image
     preprocessed_patches = [
         processor.preprocess(patch, return_tensors='pt')['pixel_values']
@@ -144,7 +148,9 @@ def process_any_resolution_image(
 
     return torch.stack(preprocessed_patches, dim= 0)
 
-#Unpad: remove padding from padded/resized image (tensor)
+#======================================================================================================================================
+# UNPAD IMAGE: remove padding from padded/resized image
+#======================================================================================================================================
 def unpad_image(
     image_tensor,
     original_size,

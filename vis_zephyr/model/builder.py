@@ -10,9 +10,9 @@ from transformers import AutoTokenizer, AutoConfig, BitsAndBytesConfig
 from .language_model import VisZephyrForCausalLM
 from vis_zephyr.constants import DEFAULT_IMAGE_PATCH_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN
 
-#=======================================================================================================================================
+#---------------------------------------------------------------------------------------------------------------------------------------
 # Load a pretrained model from a given path or Hugging Face model name.
-#=======================================================================================================================================
+#----------------------------------------------------------------------------------------------------------------------------------------
 def load_pretrained_model(
         model_path, # Path to the model checkpoints
         model_base, # Path to the LLM backbone

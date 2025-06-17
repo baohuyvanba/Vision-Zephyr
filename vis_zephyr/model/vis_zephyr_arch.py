@@ -82,6 +82,8 @@ class VisZephyrMetaModel:
         self.config.mm_vision_select_layer   = mm_vision_select_layer
         self.config.mm_vision_select_feature = mm_vision_select_feature
         self.config.mm_patch_merge_type      = mm_patch_merge_type
+        self.config.mm_grid_pinpoints        = getattr(model_args, 'mm_grid_pinpoints', None)
+        self.config.image_aspect_ratio       = getattr(model_args, 'image_aspect_ratio', 'square')
 
         #Initialize the Multimodal Projector
         if getattr(self, 'mm_projector', None) is None:
@@ -153,19 +155,22 @@ class VisZephyrMetaForCausalLM(ABC):
         # --- 1 --- EMBEDDING IMAGE: Image -> Features -> Projected Features ----------------------------------------------------------------------
         if type(images) is list or images.ndim == 5:
             #If images is a list of tensors or a 5D tensor -> process them separately
-            # - images can be: (Batch, C, H, W) or (Batch, Num_Patches, C, H_patch, W_patch) with dim = 5
+            # - images can be: list of images (Batch, C, H, W)
+            # - 5D Tensor: (Batch, Num_Patches, C, H, W)
             
             if type(images) is list:
-                #If images is a list, ensure all images are tensors is (1, C, H, W) or (1, Num_Patches, C, H_patch, W_patch) in the list
+                #If images is a list, ensure all images are tensors is (1, C, H, W) or (Num_Patches, C, H_patch, W_patch) in the list
                 images = [x.unsqueeze(0) if x.ndim == 3 else x for x in images]
 
-            #Them images list now is [B, 1 or Num_Patches, C, H, W]] -> Cat: [B * Num_Patches, C, H, W]
+            #Images list: [B, 1 or Num_Patches, C, H, W]] -> Cat: [B * Num_Patches, C, H, W]
             concat_images  = torch.cat([image for image in images], dim=0)
             
+            #IMAGE ENCODING & PROJECTING
             image_features = self.encode_images(concat_images)
 
             split_sizes    = [image.shape[0] for image in images]
             image_features = torch.split(image_features, split_sizes, dim=0)
+            #image_features: [B * Num_Patches, feature_dim] including feature from image, base image and its sub-patches
 
             #PATCHS PROCESSING
             image_features = self._process_image_patches(
@@ -364,8 +369,8 @@ class VisZephyrMetaForCausalLM(ABC):
         """
         Process Batch of patches image features
         """
-        mm_patch_merge_type = getattr(self.config, 'mm_patch_merge_type', 'flat')
-        image_aspect_ratio  = getattr(self.config, 'image_aspect_ratio', 'square')
+        mm_patch_merge_type = getattr(self.config, 'mm_patch_merge_type', 'flat')  #flat/spatial/unpad_spatial
+        image_aspect_ratio  = getattr(self.config, 'image_aspect_ratio', 'square') #square/anyres
 
         if mm_patch_merge_type == 'flat':
             #Flatten the image features for each patch in the batch.
@@ -378,10 +383,10 @@ class VisZephyrMetaForCausalLM(ABC):
             #Process the image features as spatial patches.
             new_features = []
             for indice, feature in enumerate(batched_image_features):
+                #The image has patches -> Base image + Sub Patches
                 if feature.shape[0] > 1:
-                #This is the image has patches -> Base image + Sub Patches
-                    base_feature    = feature[0]
-                    patches_feature = feature[1:]
+                    base_feature    = feature[0]  #Base image feature
+                    patches_feature = feature[1:] #Sub patches features
                     
                     h = w = self.get_vision_tower().num_patches_per_side
                     assert h*w == base_feature.shape[0]
@@ -399,6 +404,7 @@ class VisZephyrMetaForCausalLM(ABC):
                     if 'unpad' in mm_patch_merge_type:
                         patches_feature = patches_feature.permute(4, 0, 2, 1, 3).contiguous()
                         patches_feature = patches_feature.flatten(1, 2).flatten(2, 3)
+                        #Unpad the patches feature
                         patches_feature = unpad_image(
                             image_tensor  = patches_feature,
                             original_size = image_sizes[indice]
@@ -417,8 +423,9 @@ class VisZephyrMetaForCausalLM(ABC):
                         patches_feature,
                         ), dim = 0
                     )
+                
+                #Single image without patches
                 else:
-                #This is a single image without patches
                     feature = feature[0]
                     if 'unpad' in mm_patch_merge_type:
                         feature = torch.cat((

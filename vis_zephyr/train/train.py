@@ -10,18 +10,22 @@ import copy
 from dataclasses import dataclass, field
 import json
 import pathlib
-from posixpath import sep
+import random
 from typing import Dict, Optional, Sequence
 
+from numpy import isin
 import torch
 import transformers
 from torch.utils.data import Dataset
 
-from vis_zephyr.constants import *
+from vis_zephyr.constants import ( IGNORE_INDEX, DEFAULT_IMAGE_TOKEN)
+from vis_zephyr.model.vip_processor.configuration import visual_prompt_config
+
 from vis_zephyr.train.vis_zephyr_trainer import VisZephyrTrainer
 from vis_zephyr import conversation as conv_lb
 from vis_zephyr.model import VisZephyrForCausalLM
 from vis_zephyr.model.mm_utils import tokenizer_image_token
+from vis_zephyr.model.vip_processor.processor import visual_prompt_process
 
 from PIL import Image
 
@@ -87,11 +91,12 @@ class ModelArguments:
         default  = "flat",
         metadata = {"help": "Type of patch merging for multimodal vision tower."}
     )
-    #ADDING
+    #Anyres
     mm_grid_pinpoints: Optional[str] = field(
         default=None,
-        metadata={"help": "A list of possible resolutions for processing high-resolution images."}
+        metadata={"help": "A string representation of a list of possible resolutions for processing high-resolution images, e.g., '[[336, 672], [672, 336], [336, 1008], [1008, 336]]'."}
     )
+
 
 @dataclass
 class DataArguments:
@@ -106,6 +111,10 @@ class DataArguments:
         metadata = {"help": "Folder containing images for multimodal training."}
     )
     image_aspect_ratio: str = 'square'
+    mm_grid_pinpoints: Optional[str] = field(
+        default=None,
+        metadata={"help": "Grid pinpoints for any-resolution image processing. This is set automatically from ModelArguments."}
+    )
 
 @dataclass
 class TrainingArguments(transformers.TrainingArguments):
@@ -289,26 +298,28 @@ def preprocess_zephyr(
     """
     Tokenizes conversations and creates labels for supervised learning.
     """
-    conv  = conv_lb.default_conversation.copy()
-    roles = {
-        "human": conv.roles[0],
-        "gpt"  : conv.roles[1]
+    conversation = conv_lb.default_conversation.copy()
+    roles_mapping = {
+        "human": conversation.roles[0],
+        "gpt"  : conversation.roles[1]
     }
 
     # --- 1 --- Apply prompt templates
-    conversations = []
+    conversations_list = []
     for i, source in enumerate(sources):
         #If the first message is not from the human ('user') in dataset -> skip.
-        if roles[source[0]["from"]] != conv.roles[0]:
+        if roles_mapping[source[0]["from"]] != conversation.roles[0]:
             source = source[1:]
 
-        conv.messages = []
+        conversation.messages = []
         #Append system message if available
         for j, sentence in enumerate(source):
-            role = roles[sentence["from"]]
-            assert role == conv.roles[j % 2], f"Conversation role mismatch."
-            conv.append_message(role, sentence["value"])
-        conversations.append(conv.get_prompt())
+            role = roles_mapping[sentence["from"]]
+            assert role == conversation.roles[j % 2], f"Conversation role mismatch."
+            conversation.append_message(role, sentence["value"])
+        
+        #Get the full conversation prompt
+        conversations_list.append(conversation.get_prompt())
 
     # --- 2 --- Tokenize conversations
     if has_image:
@@ -318,12 +329,12 @@ def preprocess_zephyr(
                 tokenizer      = tokenizer,
                 return_tensors = 'pt'
             )
-            for prompt in conversations
+            for prompt in conversations_list
         ]
     else:
         #Text-only tokenization
         input_ids = tokenizer(
-            conversations,
+            conversations_list,
             return_tensors = 'pt',
             padding        = "longest",
             max_length     = tokenizer.model_max_length,
@@ -335,18 +346,19 @@ def preprocess_zephyr(
 
     # --- 3 --- Mask targets -> Only calculate Loss for Assistant responses
     system_role_token    = "<|system|>\n"
-    user_role_token      = f"<|{conv.roles[0]}|>\n" #<|user|>\n
-    assistant_role_token = f"<|{conv.roles[1]}|>\n" #<|assistant|>\n
-    assistant_prompt_len = len(tokenizer(assistant_role_token, return_tensors='pt').input_ids[0])
+    user_role_token      = f"<|{conversation.roles[0]}|>\n" #<|user|>\n
+    
+    assistant_role_token = f"<|{conversation.roles[1]}|>\n" #<|assistant|>\n
+    assistant_prompt_len = len(tokenizer(assistant_role_token, return_tensors = 'pt').input_ids[0])
 
-    for conservation, target in zip(conversations, targets):
+    for conservation, target in zip(conversations_list, targets):
         #Total length of the conversation
         total_length = int(target.ne(tokenizer.pad_token_id).sum())
 
         #Split conversation into turns (each turn is a Assistant respone/or User prompt)
-        turns = conservation.split(conv.separator_01)  #-> ['<|system|>...', '<|user|>...', '<|assistant|>...', '<|user|>...', ...]
-        current_length          = 1                    #Start from 1 to ignore the first token (BOS token)
-        target[:current_length] = IGNORE_INDEX         #Assign 'IGNORE_INDEX' -> BOS token
+        turns = conservation.split(conversation.separator_01)  #-> ['<|system|>...', '<|user|>...', '<|assistant|>...', '<|user|>...', ...]
+        current_length          = 1                            #Start from 1 to ignore the first token (BOS token)
+        target[:current_length] = IGNORE_INDEX                 #Assign 'IGNORE_INDEX' -> BOS token
 
         for i, turn in enumerate(turns):
             #Skip empty turns
@@ -354,7 +366,7 @@ def preprocess_zephyr(
                 break
             
             #Re-addding separator to the turn -> correct tokenized length: '<|user|>...</s>' or '<|assistant|>...</s>'
-            turn_with_separator = turn + conv.separator_01
+            turn_with_separator = turn + conversation.separator_01
 
             #MASK (IGNORE_INDEX) system + user -> Only Calculate loss for assistant responses
             not_assistant_turn = system_role_token in turn or user_role_token in turn
@@ -365,7 +377,6 @@ def preprocess_zephyr(
                     prompt    = turn_with_separator,
                     tokenizer = tokenizer
                 ))
-                # instruction_length = len(tokenizer_image_token(parts[0], tokenizer)) - 2 #Remove <image> tokens
             else:
             #Tokenize turn without image
                 turn_length = len(tokenizer(turn_with_separator, return_tensors = 'pt').input_ids)
@@ -387,7 +398,7 @@ def preprocess_zephyr(
         if current_length < tokenizer.model_max_length:
             if current_length != total_length:
                 target[:] = IGNORE_INDEX
-                rank0_print(f"WARNING: Tokenization mismatch (cur_len={cur_len}, total_len={total_len}). Ignoring sample.")
+                rank0_print(f"WARNING: Tokenization mismatch (cur_len={current_length}, total_len={total_length}). Ignoring sample.")
 
     return dict(
         input_ids = input_ids,
@@ -418,13 +429,15 @@ class LazySupervisedDataset(Dataset):
         self,
         data_path: str,
         tokenizer: transformers.PreTrainedTokenizer,
-        data_args: DataArguments
+        data_args: DataArguments,
+        model_config,
     ):
         super(LazySupervisedDataset, self).__init__()
         
         self.list_data_dict = json.load(open(data_path, "r"))
-        self.tokenizer = tokenizer
-        self.data_args = data_args
+        self.tokenizer      = tokenizer
+        self.data_args      = data_args
+        self.model_config   = model_config
 
     def __len__(self):
         return len(self.list_data_dict)
@@ -437,40 +450,116 @@ class LazySupervisedDataset(Dataset):
         
         #All data is multimodal (for Vis-Zephyr)
         if 'image' in sources[0]:
-            image_file   = self.list_data_dict[i]['image']
-            image_folder = self.data_args.image_folder
+            #Read image
+            image_folder  = self.data_args.image_folder
+            image_file    = self.list_data_dict[i]['image']
+            image         = Image.open(os.path.join(image_folder, image_file)).convert('RGB')
+            original_size = image.size
+
+            #Vision Encoder's Image processor
             processor    = self.data_args.image_processor
-            #Open the image
-            image = Image.open(os.path.join(image_folder, image_file)).convert('RGB')
+            
+            #VISUAL PROMPT: Check if there is Visual Prompt in Dataset ---------------------------------------------------------------
+            if type(sources[0]['id']) == str and sources[0]['id'].split('-')[0] in visual_prompt_config:            
+                try:
+                    image, conversations = visual_prompt_process(
+                        source            = sources[0],
+                        image             = image,
+                        image_size_anchor = processor.size['height'],
+                        data_args         = self.data_args,
+                    )
+                except:
+                    print(f"=== Error processing ViP ===")
+                    return self.__getitem__(random.randint(0, len(self.list_data_dict)-1))
+            sources[0]["conversations"] = conversations
             
             #Apply padding to make image square
             if self.data_args.image_aspect_ratio == 'pad':
                 from vis_zephyr.model.mm_utils import expand2square
                 image = expand2square(image, tuple(int(x * 255) for x in processor.image_mean))
-            
-            #Preprocess the image using the CLIP processor
-            image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
+                #Preprocess Image using the CLIP processor
+                image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
+            #Any-res resolution images
+            elif self.data_args.image_aspect_ratio == 'anyres':
+                from vis_zephyr.model.multi_scale_process import process_any_resolution_image
+                grid_pinpoints = getattr(self.data_args, 'mm_grid_pinpoints', None)
+                image_tensors_list = process_any_resolution_image(
+                    image          = image,
+                    processor      = processor,
+                    grid_pinpoints = self.data_args.mm_grid_pinpoints
+                )
+                #Preprocess Patches using the CLIP processor
+                image_tensors_list = [
+                    processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
+                    for image in image_tensors_list
+                ]
+                image = image_tensors_list
+            #Image is square
+            else:
+                #Preprocess Image using the CLIP processor
+                image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
+
             #Preprocess conversations
             conversations = copy.deepcopy([e["conversations"] for e in sources])
+            conversations = preprocess_multimodal(conversations, self.data_args)
         
         #Text-only conversations
         else:
             conversations = copy.deepcopy([e["conversations"] for e in sources])
-
-        conversations = preprocess_multimodal(conversations, self.data_args)
         
-        #Tokenize conversations and create labels
-        data_dict = preprocess_zephyr(conversations, self.tokenizer)
-        data_dict = dict(input_ids=data_dict["input_ids"][0], labels=data_dict["labels"][0])
+        #Apply Conversation Template: Tokenize conversations and create labels
+        data_dict = preprocess_zephyr(conversations, self.tokenizer) #-> dict(input_ids, labels)
+        
+        if isinstance(i, int):
+            data_dict = dict(
+                input_ids = data_dict["input_ids"][0],
+                labels    = data_dict["labels"][0]
+            )
         
         if 'image' in sources[0]:
             data_dict['image'] = image
+            #Add original image size for any-resolution images processing
+            data_dict['image_sizes'] = original_image_size
         else:
             crop_size = self.data_args.image_processor.crop_size
-            data_dict['image'] = torch.zeros(3, crop_size['height'], crop_size['width'])
-        
+            data_dict['image'] = torch.zeros(3, crop_size['height'], crop_size['width']) # Dummy tensor for text-only samples
+
         return data_dict
 
+    @property
+    def modality_lengths(self):
+        """
+        Calculate lengths of each multi-modality sample in the dataset.
+          - Use Negative values (<0) for text-only samples.
+        """
+        length_list = []
+        for sample in self.list_data_dict:
+            #Calculate length based on the number of words in conversations
+            current_length = sum(
+                len(conv['value'].split())
+                for conv in sample['conversations']
+            )
+            #Value: >0 -> multimodal sample; <0 -> text-only sample
+            current_length = -current_length if 'image' not in sample else current_length
+            length_list.append(current_length)
+        return length_list
+
+    @property
+    def lengths(self):
+        """
+        Calculate lengths of each sample in the dataset.
+        """
+        length_list = []
+        for sample in self.list_data_dict:
+            image_token = 128 if 'image' in sample else 0
+            length_list.append(sum(
+                len(conv['value'].split())
+                for conv in sample['conversations']
+            ) + image_token)
+        
+        return length_list
+
+# DATACOLLATOR: to handle padding and batching for supervised fine-tuning
 @dataclass
 class DataCollatorForSupervisedDataset(object):
     """
@@ -512,10 +601,14 @@ class DataCollatorForSupervisedDataset(object):
         #If images are present, stack them
         if 'image' in instances[0]:
             images = [instance['image'] for instance in instances]
-            if all(x is not None and x.shape == images[0].shape for x in images):
+
+            if all(x is not None and x.shape == images[0].shape and isinstance(x, torch.Tensor) for x in images if isinstance(x, torch.Tensor)):
                 batch['images'] = torch.stack(images)
             else:
                 batch['images'] = images
+            
+            if 'image_sizes' in instances[0]:
+                batch['image_sizes'] = [instance['image_sizes'] for instance in instances]
 
         return batch
 
@@ -539,7 +632,9 @@ def make_supervised_data_module(tokenizer: transformers.PreTrainedTokenizer, dat
 # ====================================================================================================================================
 # MAIN TRAINING FUNCTION
 # ====================================================================================================================================
-def train(attn_implementation: str = "flash_attention_2"):
+def train(
+    attn_implementation: str = "flash_attention_2"
+):
     global local_rank
     parser = transformers.HfArgumentParser((ModelArguments, DataArguments, TrainingArguments))
     
@@ -548,6 +643,10 @@ def train(attn_implementation: str = "flash_attention_2"):
 
     if attn_implementation is not None:
         rank0_print(f"Using attention implementation: {attn_implementation}")
+
+    if model_args.mm_grid_pinpoints is None:
+        model_args.mm_grid_pinpoints = data_args.mm_grid_pinpoints
+        rank0_print(f"Using mm_grid_pinpoints: {model_args.mm_grid_pinpoints}")
 
     # --- 1 --- Set up: Model Loading and Configuration
     #Datatype

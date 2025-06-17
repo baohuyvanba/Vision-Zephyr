@@ -11,16 +11,20 @@
 # =======================================================================================
 
 # --- Configuration ---
-DEEPSPEED_CONFIG  = "./scripts/zero2.json"
-MODEL_NAME        = "HuggingFaceH4/zephyr-7b-beta"
-VISION_TOWER_NAME = "openai/clip-vit-large-patch14-336"
+DEEPSPEED_CONFIG   = "./scripts/zero2.json"
+MODEL_NAME         = "HuggingFaceH4/zephyr-7b-beta"
+VISION_TOWER_NAME  = "openai/clip-vit-large-patch14-336"
 
-DATA_ROOT         = "./playground/data/pretrain"
-PRETRAIN_DATA     = "${DATA_ROOT}/blip.json"
+DATA_ROOT          = "./playground/data/pretrain"
+PRETRAIN_DATA      = "${DATA_ROOT}/blip.json"
 
 # --- Training Arguments ---
-LEARNING_RATE     = 2e-3
-OUTPUT_DIR        = "./checkpoints/vis-zephyr-7b-pretrain-stage1"
+LEARNING_RATE      = 2e-3
+OUTPUT_DIR         = "./checkpoints/vis-zephyr-7b-pretrain-stage1"
+
+FEATURE_LAYERS_SLC = "'[-2, -5, -8, -11, 6]'"
+IMAGE_ASPECT_RATIO = "anyres"
+GRID_PINPOINTS     = "'[[336, 672], [672, 336], [336, 1008], [1008, 336]]'"
 
 # --- RUN ---
 deepspeed --include localhost:0,1 --master_port 29501 vis_zephyr/train/train.py \
@@ -33,7 +37,9 @@ deepspeed --include localhost:0,1 --master_port 29501 vis_zephyr/train/train.py 
     --mm_projector_type mlp2x_gelu \
     --tune_mm_mlp_adapter True \
     --freeze_backbone True \
-    --mm_vision_select_layer -2 \
+    --mm_vision_select_layer "${FEATURE_LAYERS_SLC}" \
+    --image_aspect_ratio ${IMAGE_ASPECT_RATIO} \
+    --mm_grid_pinpoints "${GRID_PINPOINTS}" \
     --mm_use_im_start_end False \
     --mm_use_im_patch_token True \
     --bf16 True \

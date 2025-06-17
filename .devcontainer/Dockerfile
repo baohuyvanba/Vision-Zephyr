@@ -4,6 +4,30 @@ SHELL [ "bash", "-c" ]
 
 # Ubuntu Mirror server
 ARG UBUNTU_MIRROR=archive.ubuntu.com/ubuntu
+RUN sed -i "s|http://archive.ubuntu.com/ubuntu|http://$UBUNTU_MIRROR|g" /etc/apt/sources.list
+
+# Install CUDA 12.9
+# RUN wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/cuda-ubuntu2004.pin && \
+#     mv cuda-ubuntu2004.pin /etc/apt/preferences.d/cuda-repository-pin-600 && \
+#     wget https://developer.download.nvidia.com/compute/cuda/12.9.0/local_installers/cuda-repo-ubuntu2004-12-9-local_12.9.0-575.51.03-1_amd64.deb && \
+#     dpkg -i cuda-repo-ubuntu2004-12-9-local_12.9.0-575.51.03-1_amd64.deb && \
+#     cp /var/cuda-repo-ubuntu2004-12-9-local/cuda-*-keyring.gpg /usr/share/keyrings/ && \
+#     apt-get update && \
+#     apt-get -y install cuda-toolkit-12-9
+RUN wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/cuda-ubuntu2004.pin && \
+    mv cuda-ubuntu2004.pin /etc/apt/preferences.d/cuda-repository-pin-600 && \
+    wget https://developer.download.nvidia.com/compute/cuda/12.7.1/local_installers/cuda-repo-ubuntu2004-12-7-local_12.7.1-550.54.15-1_amd64.deb && \
+    dpkg -i cuda-repo-ubuntu2004-12-7-local_12.7.1-550.54.15-1_amd64.deb && \
+    cp /var/cuda-repo-ubuntu2004-12-7-local/cuda-*-keyring.gpg /usr/share/keyrings/ && \
+    apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y cuda-toolkit-12-7 && \
+    rm cuda-repo-ubuntu2004-12-7-local_12.7.1-550.54.15-1_amd64.deb
+
+# ENV PATH="/usr/local/cuda-12.9/bin:$PATH"
+# ENV LD_LIBRARY_PATH="/usr/local/cuda-12.9/lib64:${LD_LIBRARY_PATH}"
+ENV PATH="/usr/local/cuda-12.7/bin:$PATH"
+ENV LD_LIBRARY_PATH="/usr/local/cuda-12.7/lib64:${LD_LIBRARY_PATH}"
+
 
 # Update cache, turn on universe, install system packages
 RUN apt-get update --fix-missing && \
@@ -23,22 +47,14 @@ RUN apt-get update --fix-missing && \
         curl \
         ca-certificates
 
-RUN wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/cuda-ubuntu2004.pin && \
-    mv cuda-ubuntu2004.pin /etc/apt/preferences.d/cuda-repository-pin-600 && \
-    wget https://developer.download.nvidia.com/compute/cuda/12.9.0/local_installers/cuda-repo-ubuntu2004-12-9-local_12.9.0-575.51.03-1_amd64.deb && \
-    dpkg -i cuda-repo-ubuntu2004-12-9-local_12.9.0-575.51.03-1_amd64.deb && \
-    cp /var/cuda-repo-ubuntu2004-12-9-local/cuda-*-keyring.gpg /usr/share/keyrings/ && \
-    apt-get update && \
-    apt-get -y install cuda-toolkit-12-9
-
 # Git LFS
-RUN curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | bash && \
-    apt-get install -yq git-lfs && \
-    git lfs install
+# RUN curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | bash && \
+#     apt-get install -yq git-lfs && \
+#     git lfs install
 
-############################################
+#====================================================================================================================================
 # Setup user
-############################################
+#====================================================================================================================================
 USER vscode
 WORKDIR /home/vscode
 
@@ -50,14 +66,12 @@ RUN wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -
     rm miniconda.sh && \
     conda init --all
 
-ENV PATH="/usr/local/cuda-12.9/bin:$PATH"
-ENV LD_LIBRARY_PATH="/usr/local/cuda-12.9/lib64:${LD_LIBRARY_PATH}"
-
 # Git Clone & Environment initialization
 RUN git clone https://username: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@github.com/baohuyvanba/Vision-Zephyr.git /home/vscode/VisZephyr &&\
     cd /home/vscode/VisZephyr && \
     conda env create -f environment.yaml -n viszephyr && \
-    conda clean -afy
+    conda clean -afy && \
+    conda run -n viszephyr pip install flash-attn --no-build-isolation
 
 # Data
 # RUN mkdir -p /home/vscode/VisZephyr/playground/data/Pretrain && \

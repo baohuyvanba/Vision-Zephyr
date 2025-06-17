@@ -75,21 +75,29 @@ class LengthGroupedSampler(Sampler):
         self.world_size = world_size #Number of processes (GPUs) in distributed training
         self.lengths    = lengths    #List of lengths for each sample in the dataset  
         self.generator  = generator  #Random generator for reproducibility
-        self.group_by_modality = group_by_modality
+        self.group_by_modality = group_by_modality #Group by modality lengths or not
 
     def __len__(self):
         return len(self.lengths)
     
     def __iter__(self):
-        #HOOK: Split indices into chunks based on modality lengths (not implemented yet)
-        indices = get_length_grouped_indices(
-            lengths    = self.lengths,
-            batch_size = self.batch_size,
-            world_size = self.world_size,
-            generator  = self.generator
-        )
+        if self.group_by_modality:
+            #Split indices into chunks based on modality lengths
+            indices = get_length_grouped_indices_by_modality(
+                lengths    = self.lengths,
+                batch_size = self.batch_size,
+                world_size = self.world_size,
+                generator  = self.generator
+            )
+        else:
+            #Simple length grouping
+            indices = get_length_grouped_indices(
+                lengths    = self.lengths,
+                batch_size = self.batch_size,
+                world_size = self.world_size,
+                generator  = self.generator
+            )
         return iter(indices)
-        
 
 # SPLIT EVENLY INDICES -> CHUNKS
 def split_to_even_chunks(indices, lengths, num_chunks):
@@ -115,7 +123,7 @@ def split_to_even_chunks(indices, lengths, num_chunks):
 
     return list_chunks
 
-# 
+# GENERATE LENGTH GROUPED INDICES
 def get_length_grouped_indices(lengths, batch_size, world_size, generator=None):
     """
     Generate indices grouped by lengths for efficient batching.
@@ -131,6 +139,55 @@ def get_length_grouped_indices(lengths, batch_size, world_size, generator=None):
     #Flatten the megabatches into a single list of indices
     grouped_indices = [idx for megabatch in megabatches for idx in megabatch]
     return grouped_indices
+
+# GENERATE LENGTH GROUPED INDICES BY MODALITY
+def get_length_grouped_indices_by_modality(lengths, batch_size, world_size, generator=None):
+    """
+    Generate indices grouped by modality lengths for efficient batching.
+    """
+    if all(l != 0 for l in lengths) or all(l < 0 for l in lenghts):
+        #All samples have the same modality
+        return get_length_grouped_indices(lengths, batch_size, world_size, generator)
+
+    #Separate indices based on modality (positive for multimodal, negative for text-only)
+    multimodal_indices, multimodal_lengths = zip(*[(idx, length) for idx, length in enumerate(lengths) if length > 0]) #multimodal
+    language_indices, language_lengths     = zip(*[(idx, length) for idx, length in enumerate(lengths) if length < 0]) #language-only
+
+    #Shuffle indices
+    multimodal_shuffle = [multimodal_indices[i] for i in get_length_grouped_indices(
+        lengths    = multimodal_lengths,
+        batch_size = batch_size,
+        world_size = world_size,
+        generator  = None
+    )]
+    language_shuffle = [language_indices[i] for i in get_length_grouped_indices(
+        lengths    = language_lengths,
+        batch_size = batch_size,
+        world_size = world_size,
+        generator  = None
+    )]
+
+    #Create megabatches for each modality: Internal Length Grouping
+    megabatch_size   = batch_size * world_size
+    multimodal_megabatches = [multimodal_shuffle[i : i + megabatch_size] for i in range(0, len(multimodal_shuffle), megabatch_size)]
+    language_megabatches   = [language_shuffle[i : i + megabatch_size] for i in range(0, len(language_shuffle), megabatch_size)]
+
+    #Handle the last, possible incomplete batch
+    last_multimodal  = multimodal_megabatches[-1] if multimodal_megabatches else []
+    last_language    = language_megabatches[-1] if language_megabatches else []
+    additional_batch = last_multimodal + last_language
+
+    megabatches = (multimodal_megabatches[:-1] if multimodal_megabatches else []) + (language_megabatches[:-1] if language_megabatches else [])
+
+    #Shuffle the megabatches to mix modalities
+    megabatch_indices = torch.randperm(len(megabatches), generator = generator)
+    megabatches       = [megabatches[i] for i in megabatch_indices]
+
+    if len(additional_batch) > 0:
+        #Add the last, possibly incomplete batch
+        megabatches.append(sorted(additional_batch))
+
+    return [idx for megabatch in megabatches for idx in megabatch]
 
 # =====================================================================================================================================
 # VIS-ZEPHYR MAIN TRAINER CLASS
