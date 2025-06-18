@@ -17,11 +17,18 @@ class CLIPVisionTower(nn.Module):
         #
         self.is_loaded = False
         self.vision_tower_path = 'openai/clip-vit-large-patch14-336' if vision_tower_path is None else vision_tower_path
+        
         #Feature selection strategy
-        self.select_layers  = args.mm_vision_select_layer
         self.select_feature = getattr(args, 'mm_vision_select_feature', 'patch')
-        if isinstance(self.select_layers, list):
-            self.select_layers = [self.select_layers]
+        #Feature layers selection
+        raw_select_layers = args.mm_vision_select_layer
+        if isinstance(raw_select_layers, str):
+            try:
+                self.select_layers = [int(x.strip()) for x in raw_select_layers.split(',')]
+            except ValueError:
+                raise ValueError(f"Invalid format for mm_vision_select_layer. Expected a comma-separated string of integers, but got: {raw_select_layers}")
+        else:
+            self.select_layers = [-2]
 
         if not delay_load:
             self.load_model()

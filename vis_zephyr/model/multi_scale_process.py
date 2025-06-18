@@ -8,6 +8,22 @@ from typing import List, Tuple
 import torch
 from PIL import Image
 
+def _robust_literal_eval(value_str):
+    """
+    Recursively evaluates a string literal until it's no longer a string.
+    Handles cases like "'[[1, 2]]'" being passed from command line.
+    """
+    if not isinstance(value_str, str):
+        return value_str
+    
+    res = value_str
+    while isinstance(res, str):
+        try:
+            res = ast.literal_eval(res)
+        except (ValueError, SyntaxError):
+            return res
+    return res
+
 #Select the best fit resolution from a list of possible resolutions --------------------------------------------------------------------
 def select_best_fit_resolution(
     original_resolution : Tuple[int, int],
@@ -96,10 +112,9 @@ def calculate_grid_shape(
     Calculate the grid shape based on the image size, grid pinpoint, and patch size.
     -> Numbers of rows and columns in the grid.
     """
-    if isinstance(grid_pinpoints, list):
-        possible_res = grid_pinpoints
-    else:
-        possible_res = ast.literal_eval(grid_pinpoints)
+    possible_res = _robust_literal_eval(grid_pinpoints)
+    if not isinstance(possible_res, list):
+        raise ValueError(f"grid_pinpoints did not evaluate to a list: {grid_pinpoints}")
 
     w, h = select_best_fit_resolution(image_size, possible_res)
     

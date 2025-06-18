@@ -12,11 +12,11 @@ from typing import List, Optional
 
 from transformers import Trainer
 from transformers.trainer import (
-    get_parameters_names,
     has_length,
     ALL_LAYERNORM_LAYERS,
     logger
 )
+from transformers.trainer_pt_utils import get_parameter_names
 
 # =====================================================================================================================================
 # UTILITY FUNCTIONS: for DEEPSPEED ZeRO
@@ -198,15 +198,18 @@ class VisZephyrTrainer(Trainer):
       - Handles multimodal inputs (sampling) and custom training logic.
       - Specialized checkpoint saving for multi-stage training.
     """
-    def _get_train_sampler(self) -> Optional[torch.utils.data.Sampler]:
+    def _get_train_sampler(self, train_dataset = None) -> Optional[torch.utils.data.Sampler]:
         """Returns a sampler for the training dataset."""
+        if train_dataset is None:
+            train_dataset = self.train_dataset
+
         #Check if the train dataset is available and has length
-        if self.train_dataset is None or not has_length(self.train_dataset):
+        if train_dataset is None or not has_length(train_dataset):
             return None
         
         #Use LengthGroupedSampler to group
         if self.args.group_by_modality_length:
-            lengths = self.train_dataset.modality_lengths
+            lengths = train_dataset.modality_lengths
             return LengthGroupedSampler(
                 batch_size = self.args.train_batch_size,                                    #Train batch size
                 world_size = self.args.world_size * self.args.gradient_accumulation_steps,  #World size (number of GPUs); Gradient accumulation steps (to avoid too large batches)
@@ -216,7 +219,7 @@ class VisZephyrTrainer(Trainer):
             )
         else:
             #Default trainer sampler
-            return super().__get_trainer_sampler()
+            return super()._get_trainer_sampler(train_dataset = train_dataset)
         
     def create_optimizer(self):
         """
@@ -227,7 +230,7 @@ class VisZephyrTrainer(Trainer):
 
         if self.optimizer is None:
             #Get the parameters that should have weight decay
-            decay_parameters = get_parameters_names(opt_model, ALL_LAYERNORM_LAYERS)
+            decay_parameters = get_parameter_names(opt_model, ALL_LAYERNORM_LAYERS)
             decay_parameters = [name for name in decay_parameters if "bias" not in name]
 
             if self.args.mm_projector_lr is not None:

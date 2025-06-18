@@ -13,7 +13,6 @@ import pathlib
 import random
 from typing import Dict, Optional, Sequence
 
-from numpy import isin
 import torch
 import transformers
 from torch.utils.data import Dataset
@@ -61,13 +60,13 @@ class ModelArguments:
         default  = "openai/clip-vit-large-patch14-336",
         metadata = {"help": "Vision tower model name or path."}
     )
-    mm_vision_select_layer: Optional[int] = field(
-        default  = -2,
+    mm_vision_select_layer: Optional[str] = field(
+        default  = "-2",
         metadata = {"help": "Select layer to get features from multimodal vision tower."}
     )
-    pretrain_mm_projector: Optional[str] = field(
+    pretrain_mm_mlp_adapter: Optional[str] = field(
         default  = None,
-        metadata = {"help": "Path to pre-trained multimodal projector."}
+        metadata = {"help": "Path to pre-trained multimodal projector (mm_projector.bin)."}
     )
     mm_projector_type: Optional[str] = field(
         default  = "mlp2xgelu",
@@ -91,8 +90,8 @@ class ModelArguments:
     )
     #Anyres
     mm_grid_pinpoints: Optional[str] = field(
-        default=None,
-        metadata={"help": "A string representation of a list of possible resolutions for processing high-resolution images, e.g., '[[336, 672], [672, 336], [336, 1008], [1008, 336]]'."}
+        default  = None,
+        metadata = {"help": "A string representation of a list of possible resolutions for processing high-resolution images, e.g., '[[336, 672], [672, 336], [336, 1008], [1008, 336]]'."}
     )
 
 @dataclass
@@ -108,10 +107,10 @@ class DataArguments:
         metadata = {"help": "Folder containing images for multimodal training."}
     )
     image_aspect_ratio: str = 'square'
-    mm_grid_pinpoints: Optional[str] = field(
-        default=None,
-        metadata={"help": "Grid pinpoints for any-resolution image processing. This is set automatically from ModelArguments."}
-    )
+    # mm_grid_pinpoints: Optional[str] = field(
+    #     default=None,
+    #     metadata={"help": "Grid pinpoints for any-resolution image processing. This is set automatically from ModelArguments."}
+    # )
 
 @dataclass
 class TrainingArguments(transformers.TrainingArguments):
@@ -436,14 +435,12 @@ class LazySupervisedDataset(Dataset):
         data_path: str,
         tokenizer: transformers.PreTrainedTokenizer,
         data_args: DataArguments,
-        model_config,
     ):
         super(LazySupervisedDataset, self).__init__()
         
         self.list_data_dict = json.load(open(data_path, "r"))
         self.tokenizer      = tokenizer
         self.data_args      = data_args
-        self.model_config   = model_config
 
     def __len__(self):
         return len(self.list_data_dict)
@@ -656,9 +653,9 @@ def train(
     if attn_implementation is not None:
         rank0_print(f"Using attention implementation: {attn_implementation}")
 
-    # Pass arguments to the model
-    if model_args.mm_grid_pinpoints is None:
-        model_args.mm_grid_pinpoints = data_args.mm_grid_pinpoints
+    #Pass arguments to the Data Arguments
+    data_args.mm_grid_pinpoints = model_args.mm_grid_pinpoints
+    if model_args.mm_grid_pinpoints is not None:
         rank0_print(f"Using mm_grid_pinpoints: {model_args.mm_grid_pinpoints}")
 
     # --- 1 --- Set up: Model Loading and Configuration
@@ -708,7 +705,7 @@ def train(
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token # Mistral/Zephyr doesn't have a pad token
     
-    conv_lb.default_conversation = conv_lb.conv_templates[model_args.version]
+    conv_lb.default_conversation = conv_lb.templates[model_args.version]
 
     # --- 4 --- Initialize Vision modules
     model.get_model().initialize_vision_modules(
@@ -727,11 +724,12 @@ def train(
     # --- 5 --- Configs Multimodal Project Training
     model.config.tune_mm_mlp_adapter = training_args.tune_mm_mlp_adapter = model_args.tune_mm_mlp_adapter
     #Training Projector - freeze backbone
-    if model.args.tune_mm_mlp_adapter:
+    if model_args.tune_mm_mlp_adapter:
         rank0_print("Stage 1: Pre-training multimodal projector.")
         model.requires_grad_(False)
         for p in model.get_model().mm_projector.parameters():
             p.requires_grad = True
+    
     #Freeze MLP adapter
     model.config.freeze_mm_mlp_adapter = training_args.freeze_mm_mlp_adapter
     if training_args.freeze_mm_mlp_adapter:

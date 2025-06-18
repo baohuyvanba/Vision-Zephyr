@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vis-zephyr"
+version = "0.1.0"
+authors = [
+    { name = "Name", email = "author@example.com" },
+]
+description = "A Large Vision-Language Model based on Zephyr-7B and CLIP, optimized for high-performance training and inference."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" } # Giả định giấy phép phổ biến cho các dự án ML
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+keywords = ["llm", "vlm", "multimodal", "zephyr", "mistral", "clip", "vision-language"]
