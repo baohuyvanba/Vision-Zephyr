@@ -48,7 +48,7 @@ def main(args):
         load_8bit  = args.load_8bit,
         load_4bit  = args.load_4bit,
         device_map = "auto",
-        device     = "cuda",
+        device     = args.device, #"cuda"
     )
 
     # --- 2 --- Conversation Setup
@@ -62,14 +62,31 @@ def main(args):
 
     # --- 3 --- Image Processing
     image = load_image(args.image_file)
-    image_tensor = process_images(
-        images          = image,
-        image_processor = image_processor,
-        model_config    = model.config
-    )
+    image_sizes = image.size
+
+    #Pre-process the image based on the model's configuration
+    if model.config.image_aspect_ratio == 'anyres':
+        from vis_zephyr.model.multi_scale_process import process_any_resolution_image
+        image_tensor = process_any_resolution_image(
+            images          = image,
+            image_processor = image_processor,
+            grid_pinpoints  = model.config.grid_pinpoints,
+        )
+    else:
+        image_tensor = process_images(
+            images          = image,
+            image_processor = image_processor,
+            model_config    = model.config
+        )
+        if isinstance(image_tensor, list):
+            image_tensor = image_tensor[0]
+    
     #Move the image tensor to the correct device and dtype
     if isinstance(image_tensor, list):
-        image_tensor = [img.to(model.device, dtype = torch.float16) for img in image_tensor]
+        image_tensor = [
+            img.to(model.device, dtype = torch.float16)
+            for img in image_tensor
+        ]
     else:
         image_tensor = image_tensor.to(model.device, dtype = torch.float16)
 

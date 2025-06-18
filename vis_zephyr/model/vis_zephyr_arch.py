@@ -3,16 +3,7 @@
 # Description: CORE Architecture file - Defines the meta-architecture for integrating vision and language models.
 # =================================================================================================
 from abc import ABC, abstractmethod
-from ast import Not
-from calendar import c
-from email.mime import image
-from hmac import new
-from itertools import batched
-from pyexpat import model
-from tkinter.messagebox import IGNORE
-from turtle import width
 
-from requests import patch
 import torch
 import torch.nn as nn
 
@@ -24,9 +15,9 @@ from ..constants import (IMAGE_TOKEN_INDEX, IGNORE_INDEX, DEFAULT_IM_START_TOKEN
 
 from vis_zephyr.model import *
 
-# -----------------------------------------------------------------------------------------------------------------------------------
+#------------------------------------------------------------------------------------------------------------------------------------
 # Abstract class for the core model structure, handling vision components - Be mixed into main LLM Model class
-# -----------------------------------------------------------------------------------------------------------------------------------
+#------------------------------------------------------------------------------------------------------------------------------------
 class VisZephyrMetaModel:
     """
     Class for the core model structure, handling vision components (vision encoder, multimodal projector).
@@ -144,7 +135,10 @@ class VisZephyrMetaForCausalLM(ABC):
         image_sizes = None,
     ):
         """
-        Prepares inputs and labels for multimodal training by integrating image features into the input embeddings.
+        Prepares inputs and labels for multimodal training by:
+          - Encoding Images (Patches) -> Features
+          - Projecting Features -> Projected Features
+          - Combining Text and Image Features -> New Input Embeddings
         """
         vision_tower = self.get_vision_tower()
         
@@ -172,7 +166,7 @@ class VisZephyrMetaForCausalLM(ABC):
             image_features = torch.split(image_features, split_sizes, dim=0)
             #image_features: [B * Num_Patches, feature_dim] including feature from image, base image and its sub-patches
 
-            #PATCHS PROCESSING
+            #PATCHES PROCESSING
             image_features = self._process_image_patches(
                 batched_image_features = image_features,
                 image_sizes            = image_sizes

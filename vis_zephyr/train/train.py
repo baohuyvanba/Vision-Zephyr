@@ -17,17 +17,15 @@ from numpy import isin
 import torch
 import transformers
 from torch.utils.data import Dataset
+from PIL import Image
 
 from vis_zephyr.constants import ( IGNORE_INDEX, DEFAULT_IMAGE_TOKEN)
 from vis_zephyr.model.vip_processor.configuration import visual_prompt_config
-
+from vis_zephyr.model.vip_processor.processor import visual_prompt_process
 from vis_zephyr.train.vis_zephyr_trainer import VisZephyrTrainer
 from vis_zephyr import conversation as conv_lb
 from vis_zephyr.model import VisZephyrForCausalLM
 from vis_zephyr.model.mm_utils import tokenizer_image_token
-from vis_zephyr.model.vip_processor.processor import visual_prompt_process
-
-from PIL import Image
 
 local_rank = None
 
@@ -96,7 +94,6 @@ class ModelArguments:
         default=None,
         metadata={"help": "A string representation of a list of possible resolutions for processing high-resolution images, e.g., '[[336, 672], [672, 336], [336, 1008], [1008, 336]]'."}
     )
-
 
 @dataclass
 class DataArguments:
@@ -479,6 +476,7 @@ class LazySupervisedDataset(Dataset):
                 image = expand2square(image, tuple(int(x * 255) for x in processor.image_mean))
                 #Preprocess Image using the CLIP processor
                 image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
+            
             #Any-res resolution images
             elif self.data_args.image_aspect_ratio == 'anyres':
                 from vis_zephyr.model.multi_scale_process import process_any_resolution_image
@@ -494,6 +492,7 @@ class LazySupervisedDataset(Dataset):
                     for image in image_tensors_list
                 ]
                 image = image_tensors_list
+            
             #Image is square
             else:
                 #Preprocess Image using the CLIP processor
@@ -644,6 +643,7 @@ def train(
     if attn_implementation is not None:
         rank0_print(f"Using attention implementation: {attn_implementation}")
 
+    # Pass arguments to the model
     if model_args.mm_grid_pinpoints is None:
         model_args.mm_grid_pinpoints = data_args.mm_grid_pinpoints
         rank0_print(f"Using mm_grid_pinpoints: {model_args.mm_grid_pinpoints}")

@@ -1,4 +1,5 @@
 #!/bin/bash
+
 # =======================================================================================
 #
 #       SCRIPT FOR STAGE 1 PRETRAINING (Vision-Zephyr)
@@ -11,23 +12,32 @@
 # =======================================================================================
 
 # --- Configuration ---
-DEEPSPEED_CONFIG   = "./scripts/zero2.json"
-MODEL_NAME         = "HuggingFaceH4/zephyr-7b-beta"
-VISION_TOWER_NAME  = "openai/clip-vit-large-patch14-336"
+DEEPSPEED_CONFIG="./scripts/zero2.json"
+MODEL_NAME="HuggingFaceH4/zephyr-7b-beta"
+VISION_TOWER_NAME="openai/clip-vit-large-patch14-336"
 
-DATA_ROOT          = "./playground/data/pretrain"
-PRETRAIN_DATA      = "${DATA_ROOT}/blip.json"
+DATA_ROOT="./playground/data/pretrain"
+PRETRAIN_DATA="${DATA_ROOT}/blip.json"
 
 # --- Training Arguments ---
-LEARNING_RATE      = 2e-3
-OUTPUT_DIR         = "./checkpoints/vis-zephyr-7b-pretrain-stage1"
+LEARNING_RATE=2e-3
+OUTPUT_DIR="./checkpoints/vis-zephyr-7b-pretrain-stage1"
 
-FEATURE_LAYERS_SLC = "'[-2, -5, -8, -11, 6]'"
-IMAGE_ASPECT_RATIO = "anyres"
-GRID_PINPOINTS     = "'[[336, 672], [672, 336], [336, 1008], [1008, 336]]'"
+FEATURE_LAYERS_SLC="'[-2, -5, -8, -11, 6]'"
+IMAGE_ASPECT_RATIO="anyres"
+GRID_PINPOINTS="'[[336, 672], [672, 336], [336, 1008], [1008, 336]]'"
+
+# --- Training Hyperparameters ---
+NUM_GPUS=1
+PER_DEVICE_BATCH_SIZE=8
+GRAD_ACCUMULATION_STEPS=2
+LEARNING_RATE=2e-5
+PROJECTOR_LEARNING_RATE=2e-6
+EPOCHS=1
+SAVE_STEPS=500
 
 # --- RUN ---
-deepspeed --include localhost:0,1 --master_port 29501 vis_zephyr/train/train.py \
+deepspeed --num_gpus=$NUM_GPUS vis_zephyr/train/train.py \
     --deepspeed ${DEEPSPEED_CONFIG} \
     --model_name_or_path ${MODEL_NAME} \
     --version zephyr_v1 \
