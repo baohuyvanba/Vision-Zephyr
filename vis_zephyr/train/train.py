@@ -1,10 +1,10 @@
-# =================================================================================================
+#==================================================================================================
 # File: vis_zephyr/train/train.py
 # Description: Main script for training Vision-Zephyr models.
 #                - Handle both Stage 1 and Stage 2;
 #                - Handles argument parsing, model/tokenizer loading, LoRA setup;
 #                - Include data preprocessing, and orchestrates the training process.
-# =================================================================================================
+#==================================================================================================
 import os
 import copy
 from dataclasses import dataclass, field
@@ -36,9 +36,9 @@ def rank0_print(*args):
     if local_rank == 0:
         print(*args)
 
-# ===================================================================================================================================
+#------------------------------------------------------------------------------------------------------------------------------------
 # ARGUMENTS CLASS 
-# ===================================================================================================================================
+#------------------------------------------------------------------------------------------------------------------------------------
 @dataclass
 class ModelArguments:
     model_name_or_path: Optional[str] = field(
@@ -161,9 +161,9 @@ class TrainingArguments(transformers.TrainingArguments):
         metadata = {"help": "Precision: 16, 8, or 4."}
     )
 
-# ===================================================================================================================================
+#------------------------------------------------------------------------------------------------------------------------------------
 # SAVING & STATE HANDLING
-# ===================================================================================================================================
+#------------------------------------------------------------------------------------------------------------------------------------
 def get_peft_state_maybe_zero(named_parameters, bias):
     """
     Get PEFT state dictionary, handling zero sharding
@@ -206,9 +206,10 @@ def get_peft_state_non_lora_maybe_zero(named_parameters, require_grad_only = Tru
     
     return {k: maybe_zero(v) for k, v in to_return.items()}    
 
-# ===================================================================================================================================
+#------------------------------------------------------------------------------------------------------------------------------------
 # UTILS FUNCTIONS
-# ===================================================================================================================================
+#------------------------------------------------------------------------------------------------------------------------------------
+# Find all linear layer names for LoRA targeting, EXCLUDING vision encoder + projector parts.
 def find_all_linear_names(model):
     """
     Finds all linear layer names for LoRA targeting, excluding vision encoder + projector parts.
@@ -229,6 +230,7 @@ def find_all_linear_names(model):
     
     return list(lora_module_names)
 
+# Saving model weights for multi-stage training
 def safe_save_model_for_hf_trainer(
     trainer: transformers.Trainer,
     output_dir: str
@@ -236,8 +238,7 @@ def safe_save_model_for_hf_trainer(
     """
     Handles saving the model, especially for multi-stage training: save states to disk.
     """
-
-    #Pretraining stage: save only Projector's weights
+    #STAGE 1 - Pretraining stage: save only Projector's weights
     if getattr(trainer.args, "tune_mm_mlp_adapter", False):
         from vis_zephyr.train.vis_zephyr_trainer import get_mm_adapter_state_maybe_zero
         
@@ -246,12 +247,17 @@ def safe_save_model_for_hf_trainer(
         # if getattr(trainer.args, "use_im_start_end", False):
         #     keys_to_match.extend(['embed_tokens', 'embed_in'])
 
-        if trainer.args.local_rank <= 0:
-            torch.save(weight_to_save, os.path.join(output_dir, "mm_projector.bin"))
-            rank0_print(f"Saved multimodal projector weights to {os.path.join(output_dir, 'mm_projector.bin')}")
+        if trainer.args.local_rank == 0 or trainer.args.local_rank == -1:
+            os.mkdir(output_dir, exist_ok = True)
+            torch.save(
+                weight_to_save,
+                os.path.join(output_dir, "mm_projector.bin")
+            )
+            rank0_print(f"Saving multimodal projector weights to {os.path.join(output_dir, 'mm_projector.bin')}")
+        
         return
     
-    #Traning stage 2 (both DeepSpeed and non-Deepspeed)
+    #STAGE 2 - Finetuning model: both DeepSpeed and non-Deepspeed)
     if trainer.deepspeed:
         torch.cuda.synchronize()
         trainer.save_model(output_dir)
@@ -267,9 +273,9 @@ def safe_save_model_for_hf_trainer(
         del state_dict  # Free memory
         trainer._save(output_dir, state_dict = cpu_state_dict)
 
-# ===================================================================================================================================
+#------------------------------------------------------------------------------------------------------------------------------------
 # PREPROCESSING FUNCTIONS
-# ===================================================================================================================================
+#------------------------------------------------------------------------------------------------------------------------------------
 def preprocess_multimodal(
     sources  : Sequence[str],
     data_args: DataArguments
@@ -341,19 +347,18 @@ def preprocess_zephyr(
     #Copy input_ids -> targets (labels)
     targets = copy.deepcopy(input_ids)
 
-    # --- 3 --- Mask targets -> Only calculate Loss for Assistant responses
-    system_role_token    = "<|system|>\n"
+    # --- 3 --- Mask targets -> Only calculate Loss only on "Assistant responses"
+    system_role_token    = "<|system|>\n"                   #<|system|>\n
     user_role_token      = f"<|{conversation.roles[0]}|>\n" #<|user|>\n
-    
     assistant_role_token = f"<|{conversation.roles[1]}|>\n" #<|assistant|>\n
     assistant_prompt_len = len(tokenizer(assistant_role_token, return_tensors = 'pt').input_ids[0])
 
-    for conservation, target in zip(conversations_list, targets):
+    for conversation, target in zip(conversations_list, targets):
         #Total length of the conversation
         total_length = int(target.ne(tokenizer.pad_token_id).sum())
 
         #Split conversation into turns (each turn is a Assistant respone/or User prompt)
-        turns = conservation.split(conversation.separator_01)  #-> ['<|system|>...', '<|user|>...', '<|assistant|>...', '<|user|>...', ...]
+        turns = conversation.split(conversation.separator_01)  #-> ['<|system|>...', '<|user|>...', '<|assistant|>...', '<|user|>...', ...]
         current_length          = 1                            #Start from 1 to ignore the first token (BOS token)
         target[:current_length] = IGNORE_INDEX                 #Assign 'IGNORE_INDEX' -> BOS token
 
@@ -411,13 +416,17 @@ def preprocess(
     Main Preprocessing function that handles both text and multimodal data.
     """
     if conv_lb.templates["default"].separator_style == conv_lb.SeparatorStyle.ZEPHYR:
-        return preprocess_zephyr(sources, tokenizer, has_image=has_image)
+        return preprocess_zephyr(
+            sources   = sources,
+            tokenizer = tokenizer,
+            has_image = has_image
+        )
     
     raise ValueError(f"Unsupported conversation version: {conv_lb.default_conversation.version}. Supported: zephyr_v1.")
 
-# ===================================================================================================================================
+#------------------------------------------------------------------------------------------------------------------------------------
 # DATASET and COLLATOR
-# ===================================================================================================================================
+#------------------------------------------------------------------------------------------------------------------------------------
 class LazySupervisedDataset(Dataset):
     """
     Dataset for supervised fine-tuning (process on the fly).
@@ -507,7 +516,11 @@ class LazySupervisedDataset(Dataset):
             conversations = copy.deepcopy([e["conversations"] for e in sources])
         
         #Apply Conversation Template: Tokenize conversations and create labels
-        data_dict = preprocess_zephyr(conversations, self.tokenizer) #-> dict(input_ids, labels)
+        data_dict = preprocess(
+            sources   = conversations,
+            tokenizer = self.tokenizer,
+            has_image = ('image' in self.list_data_dict[i])
+        ) #-> dict(input_ids, labels)
         
         if isinstance(i, int):
             data_dict = dict(
@@ -628,9 +641,9 @@ def make_supervised_data_module(tokenizer: transformers.PreTrainedTokenizer, dat
         data_collator = data_collator
     )
 
-# ====================================================================================================================================
+#------------------------------------------------------------------------------------------------------------------------------------=
 # MAIN TRAINING FUNCTION
-# ====================================================================================================================================
+#------------------------------------------------------------------------------------------------------------------------------------=
 def train(
     attn_implementation: str = "flash_attention_2"
 ):

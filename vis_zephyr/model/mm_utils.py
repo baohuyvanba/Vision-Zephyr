@@ -93,10 +93,10 @@ def process_images(
 # PROCESS INPUT PROMPT (WITH IMAGE TOKEN)
 #======================================================================================================================================
 def tokenizer_image_token(
-        prompt: str,
-        tokenizer: object,
-        image_token_index: int = IMAGE_TOKEN_INDEX,
-        return_tensor: str = None,
+    prompt: str,
+    tokenizer: object,
+    image_token_index: int = IMAGE_TOKEN_INDEX,
+    return_tensor: str = None,
 ):
     """Input Prompt -> Split into chunks by <image> placeholder -> Tokenize text parts -> Add specific image token (-200)"""
 
@@ -126,6 +126,7 @@ def tokenizer_image_token(
         if return_tensor == 'pt':
             return torch.tensor(input_ids, dtype = torch.long)
         raise ValueError(f"Unknown return_tensor type: {return_tensor}")
+    
     return input_ids
 
 #MODEL NAME EXTRACTION ===================================================================================================================

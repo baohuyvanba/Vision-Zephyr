@@ -37,7 +37,7 @@ EPOCHS=1
 SAVE_STEPS=500
 
 # --- RUN ---
-deepspeed --num_gpus=$NUM_GPUS vis_zephyr/train/train.py \
+deepspeed vis_zephyr/train/train.py \
     --deepspeed ${DEEPSPEED_CONFIG} \
     --model_name_or_path ${MODEL_NAME} \
     --version zephyr_v1 \
