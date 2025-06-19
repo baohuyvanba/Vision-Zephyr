@@ -199,7 +199,10 @@ class VisZephyrMetaForCausalLM(ABC):
         cur_image_indice = 0  #Current index for image features
 
         #Remove padding if attention_mask is provided
+        print("=== Input IDs data type:", input_ids.dtype)
         input_ids  = [cur_input_ids[cur_attention_mask] for cur_input_ids, cur_attention_mask in zip(input_ids, attention_mask)]
+        print("=== Input IDs data type:", input_ids.dtype)
+            #Input ids are now is list of tensors with shape (batch_size, seq_length)
         labels     = [curent_labels[cur_attention_mask] for curent_labels, cur_attention_mask in zip(labels, attention_mask)]
 
         for batch_idx, cur_input_ids in enumerate(input_ids):
@@ -236,6 +239,7 @@ class VisZephyrMetaForCausalLM(ABC):
 
             #Embeding the text chunks without image tokens
             cur_input_embeds = self.get_model().embed_tokens(torch.cat(cur_input_ids_noimage))
+            print("=== Input Embeddings", cur_input_embeds[0])
             cur_input_embeds_noimage = torch.split(cur_input_embeds, split_sizes, dim = 0)
 
             cur_input_embeds_with_image = [] #New input embeddings with image features
@@ -489,5 +493,5 @@ class VisZephyrMetaForCausalLM(ABC):
                     padded_labels[i, :cur_length]         = cur_new_labels
                     padded_attention_mask[i, :cur_length] = True
                     padded_position_ids[i, :cur_length]   = torch.arange(0, cur_length, dtype = position_ids.dtype, device = position_ids.device)
-                
+        
         return padded_input_embeds, padded_labels, padded_attention_mask, padded_position_ids

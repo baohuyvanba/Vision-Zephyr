@@ -325,14 +325,14 @@ def preprocess_zephyr(
 
     # --- 2 --- Tokenize conversations
     if has_image:
-        input_ids = [
+        input_ids = torch.stack([
             tokenizer_image_token(
                 prompt         = prompt,
                 tokenizer      = tokenizer,
                 return_tensors = 'pt'
             )
             for prompt in conversations_list
-        ]
+        ], dim = 0)
     else:
         #Text-only tokenization
         input_ids = tokenizer(
@@ -460,7 +460,7 @@ class LazySupervisedDataset(Dataset):
             original_size = image.size
 
             #Vision Encoder's Image processor
-            processor    = self.data_args.image_processor
+            processor = self.data_args.image_processor
             
             #VISUAL PROMPT: Check if there is Visual Prompt in Dataset ---------------------------------------------------------------
             if type(sources[0]['id']) == str and sources[0]['id'].split('-')[0] in visual_prompt_config:            
