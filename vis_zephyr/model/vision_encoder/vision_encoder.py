@@ -78,7 +78,7 @@ class CLIPVisionTower(nn.Module):
                 image_forward_output = self.vision_tower(image.to(
                     device = self.device,
                     dtype = self.dtype
-                    ).unsqueeze(0),
+                    ), #.unsqueeze(0),
                     output_hidden_states = True
                 )
                 #Select features -> features list
@@ -88,7 +88,7 @@ class CLIPVisionTower(nn.Module):
             #Single image
             image_forward_output = self.vision_tower(images.to(
                 device = self.device,
-                dtype = self.dtype),
+                dtype  = self.dtype),
                 output_hidden_states = True
             )
             images_features_list = self.feature_select(image_forward_output).to(images.dtype)
