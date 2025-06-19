@@ -176,7 +176,8 @@ class VisZephyrMetaForCausalLM(ABC):
             image_features = self.encode_images(images)
 
         # --- 2 --- COMBINE TEXT + IMAGE EMBEDDINGS ---------------------------------------------------------------------------------------------
-        
+        print("===== Preparing Inputs and Labels for Multimodal =====")
+        print("Number of input_ids:", input_ids.shape[0], " and number of images:", len(image_features))
         #Dummy Tensors
         _labels         = labels
         _position_ids   = position_ids
@@ -286,7 +287,7 @@ class VisZephyrMetaForCausalLM(ABC):
             attention_mask = attention_mask.to(dtype=_attention_mask.dtype)
         
         return (
-            None,
+            input_ids, #None,
             position_ids if _position_ids is not None else None,
             attention_mask if _attention_mask is not None else None,
             past_key_values,
