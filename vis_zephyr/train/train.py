@@ -247,7 +247,7 @@ def safe_save_model_for_hf_trainer(
         #     keys_to_match.extend(['embed_tokens', 'embed_in'])
 
         if trainer.args.local_rank == 0 or trainer.args.local_rank == -1:
-            os.mkdir(output_dir, exist_ok = True)
+            os.makedirs(output_dir, exist_ok=True)
             torch.save(
                 weight_to_save,
                 os.path.join(output_dir, "mm_projector.bin")

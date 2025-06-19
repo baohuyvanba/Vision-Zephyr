@@ -199,9 +199,9 @@ class VisZephyrMetaForCausalLM(ABC):
         cur_image_indice = 0  #Current index for image features
 
         #Remove padding if attention_mask is provided
-        print("=== Input IDs data type:", input_ids.dtype)
+        print("=== Input IDs data type:", type(input_ids), " ", input_ids.shape)
         input_ids  = [cur_input_ids[cur_attention_mask] for cur_input_ids, cur_attention_mask in zip(input_ids, attention_mask)]
-        print("=== Input IDs data type:", input_ids.dtype)
+        print("=== Input IDs data type:", type(input_ids))
             #Input ids are now is list of tensors with shape (batch_size, seq_length)
         labels     = [curent_labels[cur_attention_mask] for curent_labels, cur_attention_mask in zip(labels, attention_mask)]
 
@@ -291,7 +291,7 @@ class VisZephyrMetaForCausalLM(ABC):
             attention_mask = attention_mask.to(dtype=_attention_mask.dtype)
         
         return (
-            input_ids, #None,
+            None,
             position_ids if _position_ids is not None else None,
             attention_mask if _attention_mask is not None else None,
             past_key_values,

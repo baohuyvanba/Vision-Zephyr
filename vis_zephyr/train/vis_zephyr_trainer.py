@@ -312,7 +312,7 @@ class VisZephyrTrainer(Trainer):
             from transformers.trainer_utils import PREFIX_CHECKPOINT_DIR
             
             checkpoint_dir = f"{PREFIX_CHECKPOINT_DIR}-{self.state.global_step}"
-            run_dir        = self.__get_output_dir(trial = trial)
+            run_dir        = self._get_output_dir(trial = trial)
             output_dir     = os.path.join(run_dir, checkpoint_dir)
 
             #Only save the mm_projector state (Adapter)
