@@ -14,7 +14,7 @@ from transformers import TextStreamer
 from vis_zephyr.constants import *
 from vis_zephyr.conversation import templates, SeparatorStyle
 from vis_zephyr.model.builder import load_pretrained_model
-from vis_zephyr.model.mm_utils import process_images, tokenize_image_token, get_model_name_from_path, KeywordsStoppingCriteria
+from vis_zephyr.model.mm_utils import process_images, tokenizes_image_token, get_model_name_from_path, KeywordsStoppingCriteria
 from vis_zephyr.utils import disable_torch_init
 
 #=========================================================================================================================
@@ -62,7 +62,7 @@ def main(args):
 
     # --- 3 --- Image Processing
     image = load_image(args.image_file)
-    image_sizes = image.size
+    images_size = image.size
 
     #Pre-process the image based on the model's configuration
     if model.config.image_aspect_ratio == 'anyres':
@@ -123,11 +123,11 @@ def main(args):
         prompt = conversation.get_prompt() #Get: "<|system|>...</s><|user|>...</s><|assistant|>...</s>..." -> Model
 
         #Tokenize the prompt (with image) and add the image token
-        input_ids = tokenize_image_token(
+        input_ids = tokenizes_image_token(
             prompt            = prompt,
             tokenizer         = tokenizer,
             image_token_index = IMAGE_TOKEN_INDEX,
-            return_tensor     = 'pt',
+            return_tensors    = 'pt',
         ).unsqueeze(0).to(model.device)
 
         #Stopping criteria setup

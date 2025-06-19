@@ -96,7 +96,7 @@ def tokenizer_image_token(
     prompt: str,
     tokenizer: object,
     image_token_index: int = IMAGE_TOKEN_INDEX,
-    return_tensor: str = None,
+    return_tensors: str = None,
 ):
     """Input Prompt -> Split into chunks by <image> placeholder -> Tokenize text parts -> Add specific image token (-200)"""
 
@@ -122,10 +122,10 @@ def tokenizer_image_token(
         # [Image Token Index] need to times with (offset + 1) (x2) beacause one of them will be cut with [offset:] ([1:] in [image_toke_index, image_token_index]) 
         input_ids.extend(x[offset:])
 
-    if return_tensor is not None:
-        if return_tensor == 'pt':
+    if return_tensors is not None:
+        if return_tensors == 'pt':
             return torch.tensor(input_ids, dtype = torch.long)
-        raise ValueError(f"Unknown return_tensor type: {return_tensor}")
+        raise ValueError(f"Unknown return_tensor type: {return_tensors}")
     
     return input_ids
 

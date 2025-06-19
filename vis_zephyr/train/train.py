@@ -300,39 +300,39 @@ def preprocess_zephyr(
     """
     Tokenizes conversations and creates labels for supervised learning.
     """
-    conversation = conv_lb.default_conversation.copy()
+    conv = conv_lb.default_conversation.copy()
     roles_mapping = {
-        "human": conversation.roles[0],
-        "gpt"  : conversation.roles[1]
+        "human": conv.roles[0],
+        "gpt"  : conv.roles[1]
     }
 
     # --- 1 --- Apply prompt templates
     conversations_list = []
     for i, source in enumerate(sources):
         #If the first message is not from the human ('user') in dataset -> skip.
-        if roles_mapping[source[0]["from"]] != conversation.roles[0]:
+        if roles_mapping[source[0]["from"]] != conv.roles[0]:
             source = source[1:]
 
-        conversation.messages = []
+        conv.messages = []
         #Append system message if available
         for j, sentence in enumerate(source):
             role = roles_mapping[sentence["from"]]
-            assert role == conversation.roles[j % 2], f"Conversation role mismatch."
-            conversation.append_message(role, sentence["value"])
+            assert role == conv.roles[j % 2], f"Conversation role mismatch."
+            conv.append_message(role, sentence["value"])
         
         #Get the full conversation prompt
-        conversations_list.append(conversation.get_prompt())
+        conversations_list.append(conv.get_prompt())
 
     # --- 2 --- Tokenize conversations
     if has_image:
-        input_ids = [
+        input_ids = torch.stack([
             tokenizer_image_token(
                 prompt         = prompt,
                 tokenizer      = tokenizer,
                 return_tensors = 'pt'
             )
             for prompt in conversations_list
-        ]
+        ], dim = 0)
     else:
         #Text-only tokenization
         input_ids = tokenizer(
@@ -344,12 +344,12 @@ def preprocess_zephyr(
         ).input_ids
 
     #Copy input_ids -> targets (labels)
-    targets = copy.deepcopy(input_ids)
+    targets = input_ids.clone()
 
     # --- 3 --- Mask targets -> Only calculate Loss only on "Assistant responses"
     system_role_token    = "<|system|>\n"                   #<|system|>\n
-    user_role_token      = f"<|{conversation.roles[0]}|>\n" #<|user|>\n
-    assistant_role_token = f"<|{conversation.roles[1]}|>\n" #<|assistant|>\n
+    user_role_token      = f"<|{conv.roles[0]}|>\n" #<|user|>\n
+    assistant_role_token = f"<|{conv.roles[1]}|>\n" #<|assistant|>\n
     assistant_prompt_len = len(tokenizer(assistant_role_token, return_tensors = 'pt').input_ids[0])
 
     for conversation, target in zip(conversations_list, targets):
@@ -357,7 +357,7 @@ def preprocess_zephyr(
         total_length = int(target.ne(tokenizer.pad_token_id).sum())
 
         #Split conversation into turns (each turn is a Assistant respone/or User prompt)
-        turns = conversation.split(conversation.separator_01)  #-> ['<|system|>...', '<|user|>...', '<|assistant|>...', '<|user|>...', ...]
+        turns = conversation.split(conv.separator_01)  #-> ['<|system|>...', '<|user|>...', '<|assistant|>...', '<|user|>...', ...]
         current_length          = 1                            #Start from 1 to ignore the first token (BOS token)
         target[:current_length] = IGNORE_INDEX                 #Assign 'IGNORE_INDEX' -> BOS token
 
@@ -367,7 +367,7 @@ def preprocess_zephyr(
                 break
             
             #Re-addding separator to the turn -> correct tokenized length: '<|user|>...</s>' or '<|assistant|>...</s>'
-            turn_with_separator = turn + conversation.separator_01
+            turn_with_separator = turn + conv.separator_01
 
             #MASK (IGNORE_INDEX) system + user -> Only Calculate loss for assistant responses
             not_assistant_turn = system_role_token in turn or user_role_token in turn
@@ -528,7 +528,7 @@ class LazySupervisedDataset(Dataset):
         if 'image' in sources[0]:
             data_dict['image'] = image
             #Add original image size for any-resolution images processing
-            data_dict['image_sizes'] = original_image_size
+            data_dict['images_size'] = original_size
         else:
             crop_size = self.data_args.image_processor.crop_size
             data_dict['image'] = torch.zeros(3, crop_size['height'], crop_size['width']) # Dummy tensor for text-only samples
@@ -616,8 +616,8 @@ class DataCollatorForSupervisedDataset(object):
             else:
                 batch['images'] = images
             
-            if 'image_sizes' in instances[0]:
-                batch['image_sizes'] = [instance['image_sizes'] for instance in instances]
+            if 'images_size' in instances[0]:
+                batch['images_size'] = [instance['images_size'] for instance in instances]
 
         return batch
 

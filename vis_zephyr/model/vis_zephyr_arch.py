@@ -132,7 +132,7 @@ class VisZephyrMetaForCausalLM(ABC):
         past_key_values,
         labels,
         images,
-        image_sizes = None,
+        images_size = None,
     ):
         """
         Prepares inputs and labels for multimodal training by:
@@ -169,7 +169,7 @@ class VisZephyrMetaForCausalLM(ABC):
             #PATCHES PROCESSING
             image_features = self._process_image_patches(
                 batched_image_features = image_features,
-                image_sizes            = image_sizes
+                images_size            = images_size
             )
         else:
             #If images is a single tensor (C, H, W) - only 1 image
@@ -358,7 +358,7 @@ class VisZephyrMetaForCausalLM(ABC):
     def _process_image_patches(
         self,
         batched_image_features,
-        image_sizes,
+        images_size,
     ):
         """
         Process Batch of patches image features
@@ -387,7 +387,7 @@ class VisZephyrMetaForCausalLM(ABC):
 
                     if image_aspect_ratio == 'anyres':
                         num_patch_width, num_patch_height = calculate_grid_shape(
-                            image_size = image_sizes[indice],
+                            image_size = images_size[indice],
                             grid_pinpoints = self.config.mm_grid_pinpoints,
                             patch_size = self.get_vision_tower().config.image_size,
                         )
@@ -401,7 +401,7 @@ class VisZephyrMetaForCausalLM(ABC):
                         #Unpad the patches feature
                         patches_feature = unpad_image(
                             image_tensor  = patches_feature,
-                            original_size = image_sizes[indice]
+                            original_size = images_size[indice]
                         )
                         patches_feature = torch.cat((
                             patches_feature,

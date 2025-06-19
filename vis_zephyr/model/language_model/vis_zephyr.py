@@ -152,7 +152,7 @@ class VisZephyrForCausalLM(MistralForCausalLM, VisZephyrMetaForCausalLM):
         Prepare inputs for generation, handling multimodal inputs.
         """
         images      = kwargs.pop("images", None)
-        image_sizes = kwargs.pop("image_sizes", None)
+        images_size = kwargs.pop("images_size", None)
         
         #prepare_inputs_for_generation from MistralForCausalLM
         inputs = super().prepare_inputs_for_generation(
@@ -164,8 +164,8 @@ class VisZephyrForCausalLM(MistralForCausalLM, VisZephyrMetaForCausalLM):
 
         if images is not None:
             inputs['images'] = images
-        if image_sizes is not None:
-            inputs['images_size'] = image_sizes
+        if images_size is not None:
+            inputs['images_size'] = images_size
         
         return inputs
     
