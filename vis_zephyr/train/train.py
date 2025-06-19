@@ -325,14 +325,14 @@ def preprocess_zephyr(
 
     # --- 2 --- Tokenize conversations
     if has_image:
-        input_ids = torch.stack([
+        input_ids = [
             tokenizer_image_token(
                 prompt         = prompt,
                 tokenizer      = tokenizer,
                 return_tensors = 'pt'
             )
             for prompt in conversations_list
-        ], dim = 0)
+        ]
     else:
         #Text-only tokenization
         input_ids = tokenizer(

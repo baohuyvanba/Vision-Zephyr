@@ -151,7 +151,7 @@ def process_any_resolution_image(
     )
     #Resize original image (base image) -> to the shortest edge of the crop size
     resized_original_image = image.resize(
-        (processor.size['height'], processor.size['height']),
+        (processor.crop_size['height'], processor.crop_size['height']),
         Image.Resampling.LANCZOS
     )
     #List of Patches = [Resized Image] and list of Image Patches -> Preprocess them

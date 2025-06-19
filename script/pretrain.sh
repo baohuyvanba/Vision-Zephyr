@@ -10,8 +10,8 @@
 #   - Vision Encoder (CLIP) -> Freeze
 #   - Multimodal Projector (MLP) -> Train
 # =======================================================================================
-
-deepspeed --include localhost:0,1,2,3 vis_zephyr/train/train_mem.py \
+# deepspeed --include localhost:0,1,2,3 vis_zephyr/train/train_mem.py \
+deepspeed vis_zephyr/train/train_mem.py \
     --deepspeed ./script/zero2.json \
     --tune_mm_mlp_adapter True \
     --mm_projector_lr 2e-3 \
@@ -21,7 +21,7 @@ deepspeed --include localhost:0,1,2,3 vis_zephyr/train/train_mem.py \
     --image_folder ./playground/data/pretrain/images/ \
     --vision_tower "openai/clip-vit-large-patch14-336" \
     --mm_projector_type mlp2x_gelu \
-    --mm_vision_select_layer  "-2,-5,-8,-11,6" \
+    --mm_vision_select_layer="-2,-5,-8,-11,6" \
     --mm_grid_pinpoints "'[[336, 672], [672, 336], [336, 1008], [1008, 336]]'" \
     --mm_use_im_start_end False \
     --mm_use_im_patch_token False \
@@ -34,7 +34,6 @@ deepspeed --include localhost:0,1,2,3 vis_zephyr/train/train_mem.py \
     --per_device_train_batch_size 16 \
     --per_device_eval_batch_size 4 \
     --gradient_accumulation_steps 1 \
-    --evaluation_strategy "no" \
     --save_strategy "steps" \
     --save_steps 24000 \
     --save_total_limit 1 \

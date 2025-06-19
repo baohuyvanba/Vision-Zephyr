@@ -136,13 +136,13 @@ def forward(
     return attn_output, None, past_key_value
 
 
-def _prepare_decoder_attention_mask(self, attention_mask, input_shape, inputs_embeds, past_key_values_length):
+def _prepare_decoder_attention_mask(attention_mask, input_shape, inputs_embeds, past_key_values_length):
     """
     Override default mask. FlashAttention manages causal mask internally.
     """
     return attention_mask #[batch_size, seq_length]
 
-def replace_mistral_attn_with_flash_attn(self):
+def replace_mistral_attn_with_flash_attn():
     """
     Monkey-patch Mistral model to use Flash Attention.
     """
