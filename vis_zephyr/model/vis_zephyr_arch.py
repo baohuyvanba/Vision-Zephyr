@@ -50,10 +50,10 @@ class VisZephyrMetaModel:
         Initializes the vision modules (vision tower and multimodal projector) based on the model arguments.
         Will be called after the main language model class is initialized.
         """
-        vision_tower             = model_args.vision_tower
+        vision_tower             = model_args.mm_vision_tower
         mm_vision_select_layer   = model_args.mm_vision_select_layer
         mm_vision_select_feature = model_args.mm_vision_select_feature
-        mm_projector_train       = model_args.pretrain_mm_mlp_adapter
+        mm_projector_train       = "Checkpoints/vis-zephyr-7b-v1-pretrain/checkpoint-1/mm_projector.bin" #model_args.pretrain_mm_mlp_adapter
         mm_patch_merge_type      = model_args.mm_patch_merge_type
 
         #Set config attributes for vision tower

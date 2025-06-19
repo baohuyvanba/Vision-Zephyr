@@ -10,7 +10,7 @@ def build_vision_tower(vision_tower_cfg, **kwargs):
     Build the vision tower based on the provided configuration.
     """
     vision_tower_path = getattr(vision_tower_cfg, 'mm_vision_tower', getattr(vision_tower_cfg, 'vision_tower', None))
-
+    print(f"Building vision tower from path: {vision_tower_path}")
     is_absolute_path_exists = os.path.exists(vision_tower_path)
     is_clip_openai_model    = vision_tower_path.startswith("openai")
 

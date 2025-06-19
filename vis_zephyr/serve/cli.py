@@ -14,7 +14,7 @@ from transformers import TextStreamer
 from vis_zephyr.constants import *
 from vis_zephyr.conversation import templates, SeparatorStyle
 from vis_zephyr.model.builder import load_pretrained_model
-from vis_zephyr.model.mm_utils import process_images, tokenizes_image_token, get_model_name_from_path, KeywordsStoppingCriteria
+from vis_zephyr.model.mm_utils import process_images, tokenizer_image_token, get_model_name_from_path, KeywordsStoppingCriteria
 from vis_zephyr.utils import disable_torch_init
 
 #=========================================================================================================================
@@ -123,7 +123,7 @@ def main(args):
         prompt = conversation.get_prompt() #Get: "<|system|>...</s><|user|>...</s><|assistant|>...</s>..." -> Model
 
         #Tokenize the prompt (with image) and add the image token
-        input_ids = tokenizes_image_token(
+        input_ids = tokenizer_image_token(
             prompt            = prompt,
             tokenizer         = tokenizer,
             image_token_index = IMAGE_TOKEN_INDEX,

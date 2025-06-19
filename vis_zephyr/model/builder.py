@@ -19,17 +19,17 @@ def load_pretrained_model(
         model_name, # Name of the model, used for identifying the type of model and inference architect
         load_8bit: bool = False,
         load_4bit: bool = False,
-        device_map = "auto",
+        device_map = {"": "cuda:0"},
         device     = "cuda",
-        model_args = None,
+        #model_args = None,
         **kwargs
 ):
     """
     Load a pretrained model from a given path or Hugging Face model name.
     """
-    kwargs = {"device_map": device_map, **kwargs}
+    kwargs = {} #"device_map": device_map, **kwargs}
     if device != "cuda":
-        kwargs['device_map'] = {"": device}
+        kwargs['device_map'] = None #{"": device}
     
     #Quantization Settings
     if load_8bit:
@@ -126,9 +126,9 @@ def load_pretrained_model(
         )
     
     #LOAD Vision Encoder ==========================================================================================================
-    model.get_model().initialize_vision_modules(model_args = model_args)
+    model.get_model().initialize_vision_modules(model_args = cfg_pretrained)
     vision_tower = model.get_vision_tower()
-    if not vision_tower.is_loaded():
+    if not vision_tower.is_loaded:
         print("=== Initializing Vision Encoder ===")
         vision_tower.load_model()
     vision_tower.to(device = device, dtype = torch.float16)
