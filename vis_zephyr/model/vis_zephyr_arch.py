@@ -166,7 +166,7 @@ class VisZephyrMetaForCausalLM(ABC):
             image_features = torch.split(image_features, split_sizes, dim=0)
             #image_features: [B * Num_Patches, feature_dim] including feature from image, base image and its sub-patches
 
-            #PATCHES PROCESSING
+            #PATCHES PROCESSING with Image Features
             image_features = self._process_image_patches(
                 batched_image_features = image_features,
                 images_size            = images_size

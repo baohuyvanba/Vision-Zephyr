@@ -8,14 +8,10 @@
 # Adapted from: https://github.com/lm-sys/FastChat/blob/main/llava/train/llama_flash_attn_monkey_patch.py
 # =================================================================================================
 
-from ast import Tuple
-from curses import keyname
-from select import kevent
-from turtle import position
-from typing import Optional, Union
+from typing import Optional, Tuple
 import warnings
-from numpy import dtype
 import torch
+
 import transformers
 from transformers.models.mistral.modeling_mistral import apply_rotary_pos_emb, repeat_kv
 
