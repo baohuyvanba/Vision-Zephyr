@@ -154,14 +154,15 @@ def process_any_resolution_image(
         (processor.crop_size['height'], processor.crop_size['height']),
         Image.Resampling.LANCZOS
     )
-    #List of Patches = [Resized Image] and list of Image Patches -> Preprocess them
+    #List of Patches = [Resized Image] and list of Image Patches
     patches = [resized_original_image] + patches_from_image
+    #Preprocess using CLIPProcessor
     preprocessed_patches = [
         processor.preprocess(patch, return_tensors='pt')['pixel_values']
         for patch in patches
     ]
 
-    return torch.stack(preprocessed_patches, dim= 0)
+    return torch.cat(preprocessed_patches, dim= 0)
 
 #======================================================================================================================================
 # UNPAD IMAGE: remove padding from padded/resized image

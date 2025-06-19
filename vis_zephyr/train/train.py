@@ -490,7 +490,7 @@ class LazySupervisedDataset(Dataset):
                 image_tensors_list = process_any_resolution_image(
                     image          = image,
                     processor      = processor,
-                    grid_pinpoints = self.data_args.mm_grid_pinpoints
+                    grid_pinpoints = grid_pinpoints
                 )
                 #Preprocess Patches using the CLIP processor
                 # image_tensors_list = [
