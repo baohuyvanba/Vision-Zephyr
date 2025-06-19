@@ -474,7 +474,7 @@ class LazySupervisedDataset(Dataset):
                 except:
                     print(f"=== Error processing ViP ===")
                     return self.__getitem__(random.randint(0, len(self.list_data_dict)-1))
-            sources[0]["conversations"] = conversations
+                sources[0]["conversations"] = conversations
             
             #Apply padding to make image square
             if self.data_args.image_aspect_ratio == 'pad':
@@ -493,10 +493,10 @@ class LazySupervisedDataset(Dataset):
                     grid_pinpoints = self.data_args.mm_grid_pinpoints
                 )
                 #Preprocess Patches using the CLIP processor
-                image_tensors_list = [
-                    processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
-                    for image in image_tensors_list
-                ]
+                # image_tensors_list = [
+                #     processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
+                #     for image in image_tensors_list
+                # ]
                 image = image_tensors_list
             
             #Image is square
@@ -667,10 +667,10 @@ def train(
     
     #Loading model
     model = VisZephyrForCausalLM.from_pretrained(
-        model_path          = model_args.model_name_or_path,
-        cache_dir           = training_args.cache_dir,
-        attn_implementation = attn_implementation,
-        torch_dtype         = compute_dtype,
+        pretrained_model_name_or_path = model_args.model_name_or_path,
+        cache_dir                     = training_args.cache_dir,
+        attn_implementation           = attn_implementation,
+        torch_dtype                   = compute_dtype,
         #**bnb_model_from_pretrained_args
     )
     model.config.use_cache = False

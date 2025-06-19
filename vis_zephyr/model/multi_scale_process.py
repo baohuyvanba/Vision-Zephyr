@@ -132,7 +132,7 @@ def process_any_resolution_image(
     if isinstance(grid_pinpoints, list):
         possible_resolution = grid_pinpoints
     else:
-        possible_resolution = ast.literal_eval(grid_pinpoints) #Use ast to parse string to list
+        possible_resolution = _robust_literal_eval(grid_pinpoints)
 
     #Get the best fit resolution
     best_fit_res = select_best_fit_resolution(
@@ -151,7 +151,7 @@ def process_any_resolution_image(
     )
     #Resize original image (base image) -> to the shortest edge of the crop size
     resized_original_image = image.resize(
-        (processor.crop_size['shortest_edge'], processor.crop_size['shortest_edge']),
+        (processor.size['height'], processor.size['height']),
         Image.Resampling.LANCZOS
     )
     #List of Patches = [Resized Image] and list of Image Patches -> Preprocess them

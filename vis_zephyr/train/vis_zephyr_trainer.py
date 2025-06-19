@@ -135,7 +135,7 @@ def get_length_grouped_indices(lengths, batch_size, world_size, generator=None):
     #Split indices into megabatches
     megabatches = [indices[i : i + megabatch_size] for i in range(0, len(lengths), megabatch_size)]
     #Sort megabatches by lengths
-    megabatches = [sorted(megabatch, key = lambda i: lengths[i], reserve = True) for megabatch in megabatches] 
+    megabatches = [sorted(megabatch, key = lambda i: lengths[i], reverse = True) for megabatch in megabatches] 
     #Flatten the megabatches into a single list of indices
     grouped_indices = [idx for megabatch in megabatches for idx in megabatch]
     return grouped_indices
