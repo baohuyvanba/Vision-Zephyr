@@ -68,9 +68,9 @@ def main(args):
     if model.config.image_aspect_ratio == 'anyres':
         from vis_zephyr.model.multi_scale_process import process_any_resolution_image
         image_tensor = process_any_resolution_image(
-            images          = image,
-            image_processor = image_processor,
-            grid_pinpoints  = model.config.grid_pinpoints,
+            image          = image,
+            processor      = image_processor,
+            grid_pinpoints = model.config.mm_grid_pinpoints,
         )
     else:
         image_tensor = process_images(
@@ -98,13 +98,13 @@ def main(args):
             user_input = ""
         #Exit condition
         if not user_input or user_input.lower() in ["exit", "quit"]:
-            print("Exiting chat.")
+            print("Exiting chat...")
             break
         
         #Print the assistant's role
         print(f"{roles[1]}: ", end = "")
 
-        #USER INPUT
+        #USER INPUT PROCESSING
         if image is not None:
             #First message must contain an image (prepend the image token to the user input)
             #PROBLEM

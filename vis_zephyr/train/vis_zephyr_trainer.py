@@ -316,7 +316,10 @@ class VisZephyrTrainer(Trainer):
             output_dir     = os.path.join(run_dir, checkpoint_dir)
 
             #Only save the mm_projector state (Adapter)
-            keys_to_match  = ['mm_projector']
+            keys_to_match  = ['mm_projector', 'vision_resampler']
+            if getattr(self.args, 'mm_use_im_start_end', False):
+                keys_to_match.extend(['embed_tokens', 'embed_in'])
+
             weigth_to_save = get_mm_adapter_state_maybe_zero(
                 self.model.named_parameters(),
                 keys_to_match

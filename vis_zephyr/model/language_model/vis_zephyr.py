@@ -54,7 +54,7 @@ class VisZephyrForCausalLM(MistralForCausalLM, VisZephyrMetaForCausalLM):
             attention_mask      : Optional[torch.Tensor]            = None,
             position_ids        : Optional[torch.LongTensor]        = None,
             past_key_values     : Optional[List[torch.FloatTensor]] = None,
-            inputs_embeds        : Optional[torch.FloatTensor]       = None,
+            inputs_embeds       : Optional[torch.FloatTensor]       = None,
             labels              : Optional[torch.LongTensor]        = None,
             use_cache           : Optional[bool]                    = None,
             output_attentions   : Optional[bool]                    = None,
@@ -62,8 +62,14 @@ class VisZephyrForCausalLM(MistralForCausalLM, VisZephyrMetaForCausalLM):
             images              : Optional[torch.FloatTensor]       = None,
             images_size         : Optional[List[List[int]]]         = None,
             return_dict         : Optional[bool]                    = None,
+            **kwargs
     ) -> Union[Tuple, CausalLMOutputWithPast]:
         
+        #Test only:
+        _input_ids = input_ids
+        _attention_mask = torch.ones_like(_input_ids, dtype = torch.bool)
+        _position_ids   = torch.arange(0, _input_ids.shape[1], dtype=torch.long, device=input_ids.device)
+
         #Prepare Inputs_Embeds if it's not provided
         if inputs_embeds is None:
             (
@@ -85,11 +91,11 @@ class VisZephyrForCausalLM(MistralForCausalLM, VisZephyrMetaForCausalLM):
         
         #Call original forward method
         return super().forward(
-            input_ids            = input_ids,
-            attention_mask       = attention_mask,
-            position_ids         = position_ids,
+            input_ids            = _input_ids, #input_ids,
+            attention_mask       = _attention_mask, #attention_mask,
+            position_ids         = _position_ids, #position_ids,
             past_key_values      = past_key_values,
-            inputs_embeds        = inputs_embeds,
+            inputs_embeds        = None, #inputs_embeds,
             labels               = labels,
             use_cache            = use_cache,
             output_attentions    = output_attentions,
@@ -113,20 +119,39 @@ class VisZephyrForCausalLM(MistralForCausalLM, VisZephyrMetaForCausalLM):
         if "inputs_embeds" in kwargs:
             raise NotImplementedError("`inputs_embeds` is not supported in this generate function.")
 
+        if inputs_embeds is None:
+            (
+                input_ids,
+                position_ids,
+                attention_mask,
+                past_key_values,
+                inputs_embeds,
+                labels
+            ) = self.prepare_inputs_labels_for_multimodal(
+                input_ids,
+                position_ids,
+                attention_mask,
+                past_key_values,
+                labels,
+                images,
+                images_size,
+            )
+
+
         if images is not None:
             (
                 input_ids,
                 position_ids,
                 attention_mask,
-                _,
+                _, #past_key_values
                 inputs_embeds,
-                _
+                _ #labels
             ) = self.prepare_inputs_labels_for_multimodal(
                 input_ids,
                 position_ids,
                 attention_mask,
-                None,
-                None,
+                None, #past_key_values
+                None, #labels
                 images,
                 images_size,
             )

@@ -39,7 +39,7 @@ class VisZephyrMetaModel:
 
     def get_vision_tower(self):
         """Returns the vision tower instance of the model."""
-        vision_tower = getattr(self, 'mm_vision_tower', None)
+        vision_tower = getattr(self, 'vision_tower', None)
     
         if type(vision_tower) is list:
             vision_tower = vision_tower[0]
@@ -75,6 +75,7 @@ class VisZephyrMetaModel:
         self.config.mm_patch_merge_type      = mm_patch_merge_type
         self.config.mm_grid_pinpoints        = getattr(model_args, 'mm_grid_pinpoints', None)
         self.config.image_aspect_ratio       = getattr(model_args, 'image_aspect_ratio', 'square')
+        self.config.mm_use_im_start_end      = getattr(model_args, 'mm_use_im_start_end', False)
 
         #Initialize the Multimodal Projector
         if getattr(self, 'mm_projector', None) is None:
