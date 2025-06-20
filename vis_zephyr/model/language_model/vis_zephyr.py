@@ -64,12 +64,6 @@ class VisZephyrForCausalLM(MistralForCausalLM, VisZephyrMetaForCausalLM):
             return_dict         : Optional[bool]                    = None,
             **kwargs
     ) -> Union[Tuple, CausalLMOutputWithPast]:
-        
-        #Test only:
-        _input_ids = input_ids
-        _attention_mask = torch.ones_like(_input_ids, dtype = torch.bool)
-        _position_ids   = torch.arange(0, _input_ids.shape[1], dtype=torch.long, device=input_ids.device)
-
         #Prepare Inputs_Embeds if it's not provided
         if inputs_embeds is None:
             print("Warning: `inputs_embeds` is None, using `input_ids` to get embeddings. ------")
@@ -119,25 +113,6 @@ class VisZephyrForCausalLM(MistralForCausalLM, VisZephyrMetaForCausalLM):
         attention_mask = kwargs.pop("attention_mask", None)
         if "inputs_embeds" in kwargs:
             raise NotImplementedError("`inputs_embeds` is not supported in this generate function.")
-
-        if inputs_embeds is None:
-            (
-                input_ids,
-                position_ids,
-                attention_mask,
-                past_key_values,
-                inputs_embeds,
-                labels
-            ) = self.prepare_inputs_labels_for_multimodal(
-                input_ids,
-                position_ids,
-                attention_mask,
-                past_key_values,
-                labels,
-                images,
-                images_size,
-            )
-
 
         if images is not None:
             (
