@@ -88,7 +88,7 @@ def main(args):
             for img in image_tensor
         ]
     else:
-        image_tensor = image_tensor.to(model.device, dtype = torch.float16)
+        image_tensor = image_tensor.unsqueeze(0).to(model.device, dtype = torch.float16)
 
     # --- 4 --- INTERACTIVE CHAT LOOP
     while True:
@@ -107,6 +107,7 @@ def main(args):
         #USER INPUT
         if image is not None:
             #First message must contain an image (prepend the image token to the user input)
+            #PROBLEM
             if model.config.mm_use_im_start_end:
                 user_input = DEFAULT_IM_START_TOKEN + DEFAULT_IMAGE_TOKEN + DEFAULT_IM_END_TOKEN + "\n" + user_input
             else:
@@ -132,6 +133,7 @@ def main(args):
 
         #Stopping criteria setup
         stop_str = conversation.separator_01 if conversation.separator_style == SeparatorStyle.ZEPHYR else conversation.separator_02
+        print("=== STOP STRING IS === ", stop_str, "")
         keywords = [stop_str]
         stopping_criteria = KeywordsStoppingCriteria(
             keywords  = keywords,
@@ -140,7 +142,7 @@ def main(args):
         )
         #Real-time text streaming setup
         streamer = TextStreamer(
-            tokenizer = tokenizer,
+            tokenizer   = tokenizer,
             skip_prompt = True,
             skip_special_tokens = True
         )

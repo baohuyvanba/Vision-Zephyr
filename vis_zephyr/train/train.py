@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 import json
 import pathlib
 import random
+import re
 from typing import Dict, Optional, Sequence
 
 import torch
@@ -18,7 +19,7 @@ import transformers
 from torch.utils.data import Dataset
 from PIL import Image
 
-from vis_zephyr.constants import ( IGNORE_INDEX, DEFAULT_IMAGE_TOKEN)
+from vis_zephyr.constants import ( DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN, IGNORE_INDEX, DEFAULT_IMAGE_TOKEN)
 from vis_zephyr.model.vip_processor.configuration import visual_prompt_config
 from vis_zephyr.model.vip_processor.processor import visual_prompt_process
 from vis_zephyr.train.vis_zephyr_trainer import VisZephyrTrainer
@@ -56,7 +57,7 @@ class ModelArguments:
         default  = False,
         metadata = {"help": "Tune the multimodal MLP adapter, True in pretraining stage."}
     )
-    vision_tower: Optional[str] = field(
+    mm_vision_tower: Optional[str] = field(
         default  = "openai/clip-vit-large-patch14-336",
         metadata = {"help": "Vision tower model name or path."}
     )
@@ -215,7 +216,7 @@ def find_all_linear_names(model):
     """
     cls = torch.nn.Linear
     lora_module_names   = set()
-    multimodal_keywords = ['mm_projector', 'vision_tower'] #to exclude multimodal components
+    multimodal_keywords = ['mm_projector', 'vision_tower', 'mm_vision_tower'] #to exclude multimodal components
 
     for name, module in model.named_modules():
         if any(keyword in name for keyword in multimodal_keywords):
@@ -290,6 +291,13 @@ def preprocess_multimodal(
             if DEFAULT_IMAGE_TOKEN in sentence['value']:
                 sentence['value'] = sentence['value'].replace(DEFAULT_IMAGE_TOKEN, '').strip()
                 sentence['value'] = DEFAULT_IMAGE_TOKEN + '\n' + sentence['value'].strip()
+            
+            replace_token = DEFAULT_IMAGE_TOKEN
+            if data_args.mm_use_im_start_end:
+                replace_token = DEFAULT_IM_START_TOKEN + replace_token + DEFAULT_IM_END_TOKEN
+                
+            sentence['value'] = sentence['value'].replace(DEFAULT_IMAGE_TOKEN, replace_token)
+
     return sources
 
 def preprocess_zephyr(
@@ -506,7 +514,7 @@ class LazySupervisedDataset(Dataset):
 
             #Preprocess conversations
             conversations = copy.deepcopy([e["conversations"] for e in sources])
-            conversations = preprocess_multimodal(conversations, self.data_args)
+            conversations = preprocess_multimodal(conversations, self.data_args) #Replace image tokens -> <image>\n{sentence}
         
         #Text-only conversations
         else:
@@ -654,6 +662,7 @@ def train(
         rank0_print(f"Using attention implementation: {attn_implementation}")
 
     #Pass arguments to the Data Arguments
+    model_args.image_aspect_ratio = data_args.image_aspect_ratio
     data_args.mm_grid_pinpoints = model_args.mm_grid_pinpoints
     if model_args.mm_grid_pinpoints is not None:
         rank0_print(f"Using mm_grid_pinpoints: {model_args.mm_grid_pinpoints}")
@@ -718,8 +727,6 @@ def train(
     )
     data_args.image_processor = vision_tower.image_processor
     data_args.is_multimodal = True
-
-    model.config.mm_vision_select_feature = data_args.is_multimodal
 
     # --- 5 --- Configs Multimodal Project Training
     model.config.tune_mm_mlp_adapter = training_args.tune_mm_mlp_adapter = model_args.tune_mm_mlp_adapter

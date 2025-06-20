@@ -160,7 +160,7 @@ class KeywordsStoppingCriteria(StoppingCriteria):
         for keyword in keywords:
             current_keyword_ids = tokenizer(keyword).input_ids
             
-            if len(current_keyword_ids[0]) > 1 and current_keyword_ids[0] == tokenizer.bos_token_id:
+            if len(current_keyword_ids) > 1 and current_keyword_ids[0] == tokenizer.bos_token_id:
                 #Remove the first token if it is a BOS token
                 current_keyword_ids = current_keyword_ids[1:]
             if len(current_keyword_ids) > self.max_length:
@@ -187,7 +187,7 @@ class KeywordsStoppingCriteria(StoppingCriteria):
         return False
     
     def call_for_batch(self, output_ids: torch.LongTensor, scores: torch.FloatTensor, **kwargs) -> bool:
-        offset = min(output_ids.shape[1] - self.start_len, self.max_keyword_len)
+        offset = min(output_ids.shape[1] - self.start_length, self.max_length)
         self.keyword_ids = [keyword_id.to(output_ids.device) for keyword_id in self.keyword_ids]
         for keyword_id in self.keyword_ids:
             if (output_ids[0, -keyword_id.shape[0]:] == keyword_id).all():

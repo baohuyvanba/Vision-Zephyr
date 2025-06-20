@@ -327,9 +327,10 @@ class VisZephyrTrainer(Trainer):
                 self.model.config.save_pretrained(output_dir)
                 torch.save(weigth_to_save, os.path.join(output_dir, 'mm_projector.bin'))
                 logger.info(f"Saved mm_projector state to {output_dir}/mm_projector.bin")
-        #Default checkpoint saving
+        
         else:   
-            super()._save_checkpoint(model, trial, metrics = metrics)
+            #Default checkpoint saving
+            super(VisZephyrTrainer)._save_checkpoint(model, trial, metrics = metrics)
 
     def _save(
         self,

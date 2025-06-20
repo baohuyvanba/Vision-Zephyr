@@ -19,7 +19,7 @@ deepspeed vis_zephyr/train/train_mem.py \
     --version zephyr_v1 \
     --data_path ./playground/data/pretrain/blip.json \
     --image_folder ./playground/data/pretrain/images/ \
-    --vision_tower "openai/clip-vit-large-patch14-336" \
+    --mm_vision_tower "openai/clip-vit-large-patch14-336" \
     --mm_projector_type mlp2x_gelu \
     --mm_vision_select_layer="-2,-5,-8,-11,6" \
     --mm_grid_pinpoints "'[[336, 672], [672, 336], [336, 1008], [1008, 336]]'" \

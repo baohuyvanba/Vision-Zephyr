@@ -54,7 +54,7 @@ class VisZephyrForCausalLM(MistralForCausalLM, VisZephyrMetaForCausalLM):
             attention_mask      : Optional[torch.Tensor]            = None,
             position_ids        : Optional[torch.LongTensor]        = None,
             past_key_values     : Optional[List[torch.FloatTensor]] = None,
-            input_embeds        : Optional[torch.FloatTensor]       = None,
+            inputs_embeds        : Optional[torch.FloatTensor]       = None,
             labels              : Optional[torch.LongTensor]        = None,
             use_cache           : Optional[bool]                    = None,
             output_attentions   : Optional[bool]                    = None,
@@ -64,14 +64,14 @@ class VisZephyrForCausalLM(MistralForCausalLM, VisZephyrMetaForCausalLM):
             return_dict         : Optional[bool]                    = None,
     ) -> Union[Tuple, CausalLMOutputWithPast]:
         
-        #Prepare Input_Embeds if it's not provided
-        if input_embeds is None:
+        #Prepare Inputs_Embeds if it's not provided
+        if inputs_embeds is None:
             (
                 input_ids,
                 position_ids,
                 attention_mask,
                 past_key_values,
-                input_embeds,
+                inputs_embeds,
                 labels
             ) = self.prepare_inputs_labels_for_multimodal(
                 input_ids,
@@ -89,7 +89,7 @@ class VisZephyrForCausalLM(MistralForCausalLM, VisZephyrMetaForCausalLM):
             attention_mask       = attention_mask,
             position_ids         = position_ids,
             past_key_values      = past_key_values,
-            inputs_embeds        = input_embeds,
+            inputs_embeds        = inputs_embeds,
             labels               = labels,
             use_cache            = use_cache,
             output_attentions    = output_attentions,
@@ -100,7 +100,7 @@ class VisZephyrForCausalLM(MistralForCausalLM, VisZephyrMetaForCausalLM):
     @torch.no_grad()
     def generate(
         self,
-        inputs: Optional[torch.Tensor] = None,
+        input_ids: Optional[torch.Tensor] = None,
         images: Optional[torch.Tensor] = None,
         images_size: Optional[List[List[int]]] = None,
         **kwargs,
@@ -115,14 +115,14 @@ class VisZephyrForCausalLM(MistralForCausalLM, VisZephyrMetaForCausalLM):
 
         if images is not None:
             (
-                inputs,
+                input_ids,
                 position_ids,
                 attention_mask,
                 _,
                 inputs_embeds,
                 _
             ) = self.prepare_inputs_labels_for_multimodal(
-                inputs,
+                input_ids,
                 position_ids,
                 attention_mask,
                 None,
@@ -132,7 +132,7 @@ class VisZephyrForCausalLM(MistralForCausalLM, VisZephyrMetaForCausalLM):
             )
         else:
             #Text-only generation
-            inputs_embeds = self.get_model().embed_tokens(inputs)
+            inputs_embeds = self.get_model().embed_tokens(input_ids)
         
         return super().generate(
             position_ids   = position_ids,

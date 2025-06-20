@@ -14,22 +14,21 @@ from vis_zephyr.constants import DEFAULT_IMAGE_PATCH_TOKEN, DEFAULT_IM_START_TOK
 # Load a pretrained model from a given path or Hugging Face model name.
 #----------------------------------------------------------------------------------------------------------------------------------------
 def load_pretrained_model(
-        model_path, # Path to the model checkpoints
-        model_base, # Path to the LLM backbone
-        model_name, # Name of the model, used for identifying the type of model and inference architect
+        model_path, #Model checkpoints path
+        model_base, #LLM backbone path
+        model_name, #Name of the model, used for identifying the type of model and inference architect
         load_8bit: bool = False,
         load_4bit: bool = False,
-        device_map = {"": "cuda:0"},
+        device_map = "auto", #{"": "cuda:0"},
         device     = "cuda",
-        #model_args = None,
         **kwargs
 ):
     """
     Load a pretrained model from a given path or Hugging Face model name.
     """
-    kwargs = {} #"device_map": device_map, **kwargs}
+    kwargs = {"device_map": device_map, **kwargs}
     if device != "cuda":
-        kwargs['device_map'] = None #{"": device}
+        kwargs['device_map'] = {"": device}
     
     #Quantization Settings
     if load_8bit:
@@ -98,9 +97,9 @@ def load_pretrained_model(
     #>>> Load Model without LoRA
     elif model_base is not None:
         #Load Vis-Zephyr LLM backbone model -----------------------------------------------------------------------------------------
-        print("=== Loading Zephyr LLM Backbone from base path ===")
+        print("=== Loading Zephyr LLM Backbone from BASE path ===")
         tokenizer      = AutoTokenizer.from_pretrained(model_base, use_fast = False)
-        cfg_pretrained = AutoConfig.from_pretrained(model_path)
+        cfg_pretrained = AutoConfig.from_pretrained(model_path, trust_remote_code = True)
         
         #The model class is dynamically registered -> AutoModelForCausalLM can find it.
         model = VisZephyrForCausalLM.from_pretrained(
@@ -111,8 +110,8 @@ def load_pretrained_model(
         )
         
         #Load MultiModal Projector -------------------------------------------------------------------------------------------------
-        print("=== Loading MultiModal Projector ===")
-        mm_projector_weights = torch.load(os.path.join(model_path, 'mm_projector.bin'), map_location='cpu')
+        print("=== Loading MultiModal Projector Separately ===")
+        mm_projector_weights = torch.load(os.path.join(model_path, 'mm_projector.bin'), map_location = 'cpu')
         mm_projector_weights = {k: v.to(torch.float16) for k, v in mm_projector_weights.items()}
         model.load_state_dict(mm_projector_weights, strict = False)
     
@@ -126,7 +125,7 @@ def load_pretrained_model(
         )
     
     #LOAD Vision Encoder ==========================================================================================================
-    model.get_model().initialize_vision_modules(model_args = cfg_pretrained)
+    # model.get_model().initialize_vision_modules(model_args = cfg_pretrained)
     vision_tower = model.get_vision_tower()
     if not vision_tower.is_loaded:
         print("=== Initializing Vision Encoder ===")

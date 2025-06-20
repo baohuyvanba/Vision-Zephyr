@@ -34,14 +34,14 @@ class VisZephyrMetaModel:
             if 'unpad' in getattr(config, 'mm_patch_merge_type', ''):
                 # If using unpad patch merge type, initialize the image_newline parameter
                 self.image_newline = nn.Parameter(
-                    torch.empty(config.hidden_size, dtype=self.dtype)
+                    torch.empty(config.hidden_size, dtype = self.dtype)
                 )
 
     def get_vision_tower(self):
         """Returns the vision tower instance of the model."""
-        vision_tower = getattr(self, 'vision_tower', None)
+        vision_tower = getattr(self, 'mm_vision_tower', None)
     
-        if isinstance(vision_tower, list):
+        if type(vision_tower) is list:
             vision_tower = vision_tower[0]
         return vision_tower
 
@@ -53,7 +53,7 @@ class VisZephyrMetaModel:
         vision_tower             = model_args.mm_vision_tower
         mm_vision_select_layer   = model_args.mm_vision_select_layer
         mm_vision_select_feature = model_args.mm_vision_select_feature
-        mm_projector_train       = "Checkpoints/vis-zephyr-7b-v1-pretrain/checkpoint-1/mm_projector.bin" #model_args.pretrain_mm_mlp_adapter
+        mm_projector_train       = model_args.pretrain_mm_mlp_adapter #"Checkpoints/vis-zephyr-7b-v1-pretrain/checkpoint-1/mm_projector.bin"
         mm_patch_merge_type      = model_args.mm_patch_merge_type
 
         #Set config attributes for vision tower
@@ -336,9 +336,9 @@ class VisZephyrMetaForCausalLM(ABC):
                 for p in self.get_output_embeddings().parameters():
                     p.requires_grad = False
             
-            if model_args.mm_mlp_adapter_train:
+            if model_args.pretrain_mm_mlp_adapter:
                 #Load pre-trained adapter weights if available
-                projector_weights   = torch.load(model_args.mm_mlp_adapter_train, map_location='cpu')
+                projector_weights   = torch.load(model_args.pretrain_mm_mlp_adapter, map_location='cpu')
                 embed_tokens_weight = projector_weights['model.embed_tokens.weight']
                 assert num_new_tokens == 2
                 if input_embeddings.shape == embed_tokens_weight.shape:

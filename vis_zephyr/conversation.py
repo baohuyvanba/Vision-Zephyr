@@ -87,7 +87,7 @@ conv_zephyr_v1 = Conversation(
     separator_style = SeparatorStyle.ZEPHYR,
     separator_01 = "</s>",
     separator_02 = None,
-    version = "zephyr-v1",
+    version = "zephyr_v1",
 )
 
 #Default conversation
