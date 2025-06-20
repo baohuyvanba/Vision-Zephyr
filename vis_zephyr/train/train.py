@@ -662,8 +662,9 @@ def train(
         rank0_print(f"Using attention implementation: {attn_implementation}")
 
     #Pass arguments to the Data Arguments
-    model_args.image_aspect_ratio = data_args.image_aspect_ratio
-    data_args.mm_grid_pinpoints = model_args.mm_grid_pinpoints
+    training_args.mm_use_im_start_end = model_args.mm_use_im_start_end
+    model_args.image_aspect_ratio     = data_args.image_aspect_ratio
+    data_args.mm_grid_pinpoints       = model_args.mm_grid_pinpoints
     if model_args.mm_grid_pinpoints is not None:
         rank0_print(f"Using mm_grid_pinpoints: {model_args.mm_grid_pinpoints}")
 

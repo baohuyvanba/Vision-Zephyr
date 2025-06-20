@@ -72,6 +72,7 @@ class VisZephyrForCausalLM(MistralForCausalLM, VisZephyrMetaForCausalLM):
 
         #Prepare Inputs_Embeds if it's not provided
         if inputs_embeds is None:
+            print("Warning: `inputs_embeds` is None, using `input_ids` to get embeddings. ------")
             (
                 input_ids,
                 position_ids,
