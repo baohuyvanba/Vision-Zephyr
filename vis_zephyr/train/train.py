@@ -5,13 +5,15 @@
 #                - Handles argument parsing, model/tokenizer loading, LoRA setup;
 #                - Include data preprocessing, and orchestrates the training process.
 #==================================================================================================
+import time
+import psutil
+#
 import os
 import copy
 from dataclasses import dataclass, field
 import json
 import pathlib
 import random
-import re
 from typing import Dict, Optional, Sequence
 
 import torch
@@ -777,13 +779,51 @@ def train(
         **data_module
     )
 
+    # --- START BENCHMARK LOGGING ---
+    if local_rank in (0, None):
+        torch.cuda.reset_peak_memory_stats()
+        cpu_mem_before = psutil.virtual_memory().used if psutil else None
+        t0 = time.time()
+        n_samples = len(trainer.train_dataset)
+        n_params_trainable = sum(
+            p.numel() for p in model.parameters() if p.requires_grad
+        )
+        rank0_print(f"[BENCH] Trainable params: {n_params_trainable:,}")
+    # --- END PREPARE LOGGING ---
+
     # --- 9 --- TRAINING
     if list(pathlib.Path(training_args.output_dir).glob("checkpoint-*")):
         rank0_print("Resuming training from the last checkpoint.")
-        trainer.train(resume_from_checkpoint = True)
+        result = trainer.train(resume_from_checkpoint = True)
     else:
         rank0_print("Starting training from scratch.")
-        trainer.train()
+        result = trainer.train()
+
+    # --- END BENCHMARK LOGGING ---
+    if local_rank in (0, None):
+        t1 = time.time()
+        total_time = t1 - t0
+        gpu_peak = torch.cuda.max_memory_allocated() / (1024**2)
+        cpu_mem_after = psutil.virtual_memory().used if psutil else None
+        cpu_delta = cpu_mem_after - cpu_mem_before if cpu_mem_before is not None else None
+        throughput = n_samples / total_time
+        rank0_print(f"[BENCH] Total time       : {total_time:.1f}s")
+        rank0_print(f"[BENCH] Throughput       : {throughput:.1f} samples/s")
+        rank0_print(f"[BENCH] GPU peak memory  : {gpu_peak:.1f} MiB")
+        if cpu_delta is not None:
+            rank0_print(f"[BENCH] CPU delta memory : {cpu_delta/1024**2:.1f} MiB")
+    if local_rank in (0, None):
+        csv_line = ",".join(map(str, [
+            model_args.version,
+            n_samples,
+            n_params_trainable,
+            f"{total_time:.1f} s",
+            f"{throughput:.1f} samples/s",
+            f"{gpu_peak:.1f} MiB",
+            f"{cpu_delta/1024**2:.1f}" if cpu_delta else ""
+        ]))
+        with open(os.path.join(training_args.output_dir, "benchmark.csv"), "a") as f:
+            f.write(csv_line + "\n")
 
     trainer.save_state()
     model.config.use_cache = True
