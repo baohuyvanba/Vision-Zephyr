@@ -8,6 +8,8 @@ import torch
 import torch.nn as nn
 from transformers import CLIPVisionModel, CLIPImageProcessor, CLIPVisionConfig
 
+from vis_zephyr.model.gating_fusion import MeanGatedFeaturesFusion
+
 class CLIPVisionTower(nn.Module):
     """
     CLIP Vision Encoder Multilayer-Tower for Image Embedding.
@@ -29,6 +31,9 @@ class CLIPVisionTower(nn.Module):
                 raise ValueError(f"Invalid format for mm_vision_select_layer. Expected a comma-separated string of integers, but got: {raw_select_layers}")
         else:
             self.select_layers = [-2]
+        
+        #Gating MLP Fusion
+        self.gating_fusion = None #load in load_model()
 
         if not delay_load:
             self.load_model()
@@ -37,14 +42,23 @@ class CLIPVisionTower(nn.Module):
             self.cfg_only = CLIPVisionConfig.from_pretrained(self.vision_tower_path)        
     
     def load_model(self):
-        """Load the Vision Encoder + Image Processor."""
+        """Load the Vision Encoder + Image Processor + Gating MLP Fusion."""
         #Load Image Processor and Vision Tower
         self.image_processor = CLIPImageProcessor.from_pretrained(self.vision_tower_path)
         self.vision_tower    = CLIPVisionModel.from_pretrained(self.vision_tower_path)
+        self.gating_fusion   = MeanGatedFeaturesFusion(
+            num_layers = len(self.select_layers),
+            Dim        = self.vision_tower.config.hidden_size,
+            Hidden     = self.vision_tower.config.hidden_size // 2
+        )
         
         #Freeze the vision tower parameters
         self.vision_tower.requires_grad_(False)
         self.is_loaded = True
+
+        #Unfreeze the gating fusion parameters
+        if self.gating_fusion is not None:
+            self.gating_fusion.requires_grad_(True)
 
     def feature_select(self, image_forward_output):
         """Select features from the vision tower output."""
@@ -52,8 +66,8 @@ class CLIPVisionTower(nn.Module):
         #Get Selected features
         selected_features = [image_forward_output['hidden_states'][indice] for indice in self.select_layers]
         
-        if self.select_feature == 'patch':
-            #Process Patch features: remove the first feature (CLS token)
+        if self.select_feature == 'patch': #Default
+            #Process Patch features: remove the first feature (CLS token, represent for the whole image)
             patch_features    = [features[:, 1:] for features in selected_features]
         elif self.select_feature == 'cls_patch':
             #Concatenate patch features along the feature dimension
@@ -61,8 +75,13 @@ class CLIPVisionTower(nn.Module):
         else:
             raise ValueError(f"Unknown feature selection strategy: {self.select_feature}")
         
-        concatenated_features = torch.cat(patch_features, dim = -1)
-        return concatenated_features
+        # OLD - Concatenate:
+        # concatenated_features = torch.cat(patch_features, dim = -1)
+
+        # NEW - Use MeanGatedFeaturesFusion for better feature fusion
+        fused_features = self.gating_fusion(patch_features)
+
+        return fused_features
 
     @torch.no_grad()
     def forward(self, images):
@@ -102,6 +121,8 @@ class CLIPVisionTower(nn.Module):
     @property
     def dtype(self):
         """Return the data type of the vision tower."""
+        if self.gating_fusion is not None:
+            return self.gating_fusion.dtype
         return self.vision_tower.dtype
     
     @property
@@ -120,7 +141,7 @@ class CLIPVisionTower(nn.Module):
     @property
     def hidden_size(self):
         """Return the hidden size of the vision tower."""
-        return self.vision_tower.config.hidden_size*len(self.select_layers)
+        return self.vision_tower.config.hidden_size #*len(self.select_layers)
     
     @property
     def num_patches(self):

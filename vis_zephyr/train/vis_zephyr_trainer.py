@@ -305,7 +305,7 @@ class VisZephyrTrainer(Trainer):
         """
         Save the model checkpoint.
           - Overridden -> handle multi-stage training checkpoints.
-          - In Pretraining Stage: save the mm_projector state only.
+          - In Pretraining Stage: save the mm_projector/gating_mlp state only.
         """
         #Pretraining Stage: only save the mm_projector state
         if getattr(self.args, 'tune_mm_mlp_adapter', False):
@@ -316,7 +316,7 @@ class VisZephyrTrainer(Trainer):
             output_dir     = os.path.join(run_dir, checkpoint_dir)
 
             #Only save the mm_projector state (Adapter)
-            keys_to_match  = ['mm_projector', 'vision_resampler']
+            keys_to_match  = ['mm_projector', 'vision_resampler', 'vision_tower.gating_fusion']
             if getattr(self.args, 'mm_use_im_start_end', False):
                 keys_to_match.extend(['embed_tokens', 'embed_in'])
 

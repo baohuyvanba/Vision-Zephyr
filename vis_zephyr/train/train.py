@@ -22,7 +22,7 @@ from PIL import Image
 from vis_zephyr.constants import ( DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN, IGNORE_INDEX, DEFAULT_IMAGE_TOKEN)
 from vis_zephyr.model.vip_processor.configuration import visual_prompt_config
 from vis_zephyr.model.vip_processor.processor import visual_prompt_process
-from vis_zephyr.train.vis_zephyr_trainer import VisZephyrTrainer
+from vis_zephyr.train.vis_zephyr_trainer import VisZephyrTrainer, maybe_zero
 from vis_zephyr import conversation as conv_lb
 from vis_zephyr.model import VisZephyrForCausalLM
 from vis_zephyr.model.mm_utils import tokenizer_image_token
@@ -207,7 +207,7 @@ def get_peft_state_non_lora_maybe_zero(named_parameters, require_grad_only = Tru
     return {k: maybe_zero(v) for k, v in to_return.items()}    
 
 #------------------------------------------------------------------------------------------------------------------------------------
-# UTILS FUNCTIONS
+# UTILS FUNCTIONS for LORA
 #------------------------------------------------------------------------------------------------------------------------------------
 # Find all linear layer names for LoRA targeting, EXCLUDING vision encoder + projector parts.
 def find_all_linear_names(model):
