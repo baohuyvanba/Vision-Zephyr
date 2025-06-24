@@ -88,7 +88,7 @@ class CLIPVisionTower(nn.Module):
         """
         Forward pass through the vision tower.
         """
-        if isinstance(images, list) or images.ndim == 4:
+        if isinstance(images, list):
             images_features_list = []
             
             #Iterate each image in the list
@@ -104,7 +104,7 @@ class CLIPVisionTower(nn.Module):
                 image_features = self.feature_select(image_forward_output).to(image.dtype)
                 images_features_list.append(image_features)
         else:
-            #Single image
+            #Batched images with [batch_size, channels, height, width]
             image_forward_output = self.vision_tower(images.to(
                 device = self.device,
                 dtype  = self.dtype),
