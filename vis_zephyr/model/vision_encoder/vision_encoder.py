@@ -96,7 +96,7 @@ class CLIPVisionTower(nn.Module):
                 #Embedding image
                 image_forward_output = self.vision_tower(image.to(
                     device = self.device,
-                    dtype = self.dtype
+                    dtype = self.dtype()
                     ), #.unsqueeze(0),
                     output_hidden_states = True
                 )
@@ -107,7 +107,7 @@ class CLIPVisionTower(nn.Module):
             #Single image
             image_forward_output = self.vision_tower(images.to(
                 device = self.device,
-                dtype  = self.dtype),
+                dtype  = self.dtype()),
                 output_hidden_states = True
             )
             images_features_list = self.feature_select(image_forward_output).to(images.dtype)
@@ -121,8 +121,8 @@ class CLIPVisionTower(nn.Module):
     @property
     def dtype(self):
         """Return the data type of the vision tower."""
-        if self.gating_fusion is not None:
-            return self.gating_fusion.dtype
+        # if self.gating_fusion is not None:
+        #     return self.gating_fusion.dtype
         return self.vision_tower.dtype
     
     @property
