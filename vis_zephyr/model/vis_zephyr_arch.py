@@ -174,7 +174,7 @@ class VisZephyrMetaForCausalLM(ABC):
             )
         else:
             #If images is a single tensor (C, H, W) - only 1 image
-            image_features = self.encode_images(images)
+            image_features = self.encode_images(images.unsquezee(0))
 
         # --- 2 --- COMBINE TEXT + IMAGE EMBEDDINGS ---------------------------------------------------------------------------------------------
         print("===== Preparing Inputs and Labels for Multimodal =====")
