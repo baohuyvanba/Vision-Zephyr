@@ -334,8 +334,6 @@ def preprocess_zephyr(
         prompt = conv.get_prompt()
         conversations_list.append(prompt)
 
-        print(f"[SOURCE-{i}] Final Prompt:\n{prompt}") #OK
-
     # --- 2 --- Tokenize conversations
     if has_image:
         input_ids = torch.stack([
@@ -369,12 +367,9 @@ def preprocess_zephyr(
     for idx, (conversation, target) in enumerate(zip(conversations_list, targets)): 
         #Total length of the conversation
         total_length = int(target.ne(tokenizer.pad_token_id).sum())
-        print(f"\n[CONVERSATION-{idx}] TOTAL_LENGTH = {total_length}")
 
         #Split conversation into turns (each turn is a Assistant respone/or User prompt)
         turns = conversation.split(conv.separator_01)  #-> ['<|system|>...', '<|user|>...', '<|assistant|>...', '<|user|>...', ...]
-
-        #OK print("TURNS split: ", turns)
         
         current_length          = 1                            #Start from 1 to ignore the first token (BOS token)
         target[:current_length] = IGNORE_INDEX                 #Assign 'IGNORE_INDEX' -> BOS token
@@ -386,7 +381,6 @@ def preprocess_zephyr(
             
             #Re-addding separator to the turn -> correct tokenized length: '<|user|>...</s>' or '<|assistant|>...</s>'
             turn_with_separator = turn + conv.separator_01
-            print(f"  [TURN-{t_i}] Turn with separator: {turn_with_separator}")
 
             #MASK (IGNORE_INDEX) system + user -> Only Calculate loss for assistant responses
             not_assistant_turn = system_role_token in turn or user_role_token in turn
@@ -407,17 +401,12 @@ def preprocess_zephyr(
             #Apply IGNORE_INDEX to system and user messages
             if not_assistant_turn:
                 target[current_length:current_length + turn_length] = IGNORE_INDEX
-                current_length += turn_length
             else:
                 #Apply IGNORE_INDEX to assistant_tokens <|assistant|>\n
                 target[current_length:current_length + assistant_prompt_len] = IGNORE_INDEX
-                current_length += turn_length
-
-            print(f"  [TURN-{t_i}] {'user' if not_assistant_turn else 'assistant'} "
-                  f"| turn_len = {turn_length} | current_len = {current_length}")
 
             #Move the cursor to the next turn
-            
+            current_length += turn_length
 
         #Apply IGNORE_INDEX to the rest of the tokens
         target[current_length:] = IGNORE_INDEX
@@ -427,7 +416,6 @@ def preprocess_zephyr(
             if current_length != total_length:
                 target[:] = IGNORE_INDEX
                 rank0_print(f"WARNING: Tokenization mismatch (cur_len={current_length}, total_len={total_length}). Ignoring sample.")
-                print(f"WARNING: Tokenization mismatch (cur_len={current_length}, total_len={total_length}). Ignoring sample.")
 
     return dict(
         input_ids = input_ids,
