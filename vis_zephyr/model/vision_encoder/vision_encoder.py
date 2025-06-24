@@ -48,8 +48,8 @@ class CLIPVisionTower(nn.Module):
         self.vision_tower    = CLIPVisionModel.from_pretrained(self.vision_tower_path)
         self.gating_fusion   = MeanGatedFeaturesFusion(
             num_layers = len(self.select_layers),
-            Dim        = self.vision_tower.config.hidden_size,
-            Hidden     = self.vision_tower.config.hidden_size // 2
+            input_dim  = self.vision_tower.config.hidden_size,
+            hidden_dim = self.vision_tower.config.hidden_size // 2
         )
         
         #Freeze the vision tower parameters
