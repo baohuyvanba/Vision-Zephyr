@@ -30,17 +30,17 @@ class QFormerBlock(nn.Module):
 class QFormer(nn.Module):
     def __init__(self, config):
         super().__init__()
-        self.num_queries = config.num_projector_queries
+        self.num_queries = 1
         self.hidden_size = config.hidden_size
 
         self.learned_queries = nn.Parameter(torch.randn(self.num_queries, self.hidden_size))
         self.blocks = nn.ModuleList([
             QFormerBlock(
                 hidden_size=self.hidden_size,
-                nhead=config.projector_nhead,
-                ffn_dim=config.projector_ffn_dim
+                nhead= 8,
+                ffn_dim= 4096
             )
-            for _ in range(config.projector_num_layers)
+            for _ in range(4)
         ])
         self.norm = nn.LayerNorm(self.hidden_size)
 
