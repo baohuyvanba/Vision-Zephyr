@@ -742,10 +742,26 @@ def train(
     model.config.tune_mm_mlp_adapter = training_args.tune_mm_mlp_adapter = model_args.tune_mm_mlp_adapter
     #Training Projector - freeze backbone
     if model_args.tune_mm_mlp_adapter:
-        rank0_print("Stage 1: Pre-training multimodal projector.")
+        rank0_print("===== Stage 1: Pre-training Gating Fusion and Multimodal projector =====")
         model.requires_grad_(False)
-        for p in model.get_model().mm_projector.parameters():
-            p.requires_grad = True
+
+        #MLP
+        if hasattr(model.get_model(), "mm_projector"):
+            for p in model.get_model().mm_projector.parameters():
+                p.requires_grad = True
+        else:
+            raise ValueError(
+                "model.get_model().mm_projector is not available."
+            )
+        
+        #Gating
+        if hasattr(model.get_model(), "vision_tower") and hasattr(model.get_model().vision_tower, "gating_fusion"):
+            for p in model.get_model().gating_fusion.parameters():
+                p.requires_grad = True
+        else:
+            raise ValueError(
+                "model.get_model().vision_tower.gating_fusion is not available."
+            )
     
     #Freeze MLP adapter
     model.config.freeze_mm_mlp_adapter = training_args.freeze_mm_mlp_adapter
