@@ -145,7 +145,7 @@ def get_length_grouped_indices_by_modality(lengths, batch_size, world_size, gene
     """
     Generate indices grouped by modality lengths for efficient batching.
     """
-    if all(l != 0 for l in lengths) or all(l < 0 for l in lenghts):
+    if all(l != 0 for l in lengths) or all(l < 0 for l in lengths):
         #All samples have the same modality
         return get_length_grouped_indices(lengths, batch_size, world_size, generator)
 
