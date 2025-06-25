@@ -86,9 +86,9 @@ class VisZephyrForCausalLM(MistralForCausalLM, VisZephyrMetaForCausalLM):
         
         #Call original forward method
         return super().forward(
-            input_ids            = _input_ids, #input_ids,
-            attention_mask       = _attention_mask, #attention_mask,
-            position_ids         = _position_ids, #position_ids,
+            input_ids            = input_ids,
+            attention_mask       = attention_mask,
+            position_ids         = position_ids,
             past_key_values      = past_key_values,
             inputs_embeds        = None, #inputs_embeds,
             labels               = labels,

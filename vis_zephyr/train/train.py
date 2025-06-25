@@ -663,6 +663,7 @@ def train(
 
     #Pass arguments to the Data Arguments
     training_args.mm_use_im_start_end = model_args.mm_use_im_start_end
+    data_args.mm_use_im_start_end     = model_args.mm_use_im_start_end
     model_args.image_aspect_ratio     = data_args.image_aspect_ratio
     data_args.mm_grid_pinpoints       = model_args.mm_grid_pinpoints
     if model_args.mm_grid_pinpoints is not None:
