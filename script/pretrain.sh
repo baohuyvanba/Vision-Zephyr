@@ -11,7 +11,7 @@
 #   - Multimodal Projector (MLP) -> Train
 # =======================================================================================
 # deepspeed --include localhost:0,1,2,3 vis_zephyr/train/train_mem.py \
-deepspeed vis_zephyr/train/train_mem.py \
+WANDB_MODE=disabled deepspeed vis_zephyr/train/train_mem.py \
     --deepspeed ./script/zero2.json \
     --tune_mm_mlp_adapter True \
     --mm_projector_lr 2e-3 \
