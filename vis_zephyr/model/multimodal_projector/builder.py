@@ -7,7 +7,12 @@ class QFormerBlock(nn.Module):
     def __init__(self, hidden_size, nhead, ffn_dim):
         super().__init__()
         self.self_attn = nn.MultiheadAttention(hidden_size, nhead, batch_first=True)
-        self.cross_attn = nn.MultiheadAttention(hidden_size, nhead, batch_first=True)
+        self.cross_attn = nn.MultiheadAttention(
+            embed_dim=4096,
+            kdim=5120,
+            vdim=5120,
+            batch_first=True
+        )
         self.norm1 = nn.LayerNorm(hidden_size)
         self.norm2 = nn.LayerNorm(hidden_size)
         self.norm3 = nn.LayerNorm(hidden_size)
@@ -47,9 +52,16 @@ class QFormer(nn.Module):
     def forward(self, features, text_embeddings=None):
         B = features.size(0)
         queries = self.learned_queries.unsqueeze(0).expand(B, -1, -1)
-
+        
         if text_embeddings is not None:
-            queries = torch.cat([queries, text_embeddings], dim=1)
+            if isinstance(text_embeddings, list):
+                text_embeddings = torch.stack(text_embeddings, dim=0)  # [B, L, D]
+                if text_embeddings.shape[0] < B:
+                    repeat_times = (B + text_embeddings.shape[0] - 1) // text_embeddings.shape[0]
+                    text_embeddings = text_embeddings.repeat((repeat_times, 1, 1))[:B]
+
+            if queries.shape[1] == 1:  # <== chỉ concat nếu chưa concat
+                queries = torch.cat([queries, text_embeddings], dim=1)  # [B, Q+L, D]
 
         for blk in self.blocks:
             queries = blk(queries, features)
