@@ -329,7 +329,8 @@ def preprocess_zephyr(
             conv.append_message(role, sentence["value"])
         
         #Get the full conversation prompt
-        conversations_list.append(conv.get_prompt())
+        prompt = conv.get_prompt()
+        conversations_list.append(prompt)
 
     # --- 2 --- Tokenize conversations
     if has_image:
@@ -355,21 +356,23 @@ def preprocess_zephyr(
     targets = input_ids.clone()
 
     # --- 3 --- Mask targets -> Only calculate Loss only on "Assistant responses"
-    system_role_token    = "<|system|>\n"                   #<|system|>\n
+    system_role_token    = "<|system|>\n"           #<|system|>\n
     user_role_token      = f"<|{conv.roles[0]}|>\n" #<|user|>\n
     assistant_role_token = f"<|{conv.roles[1]}|>\n" #<|assistant|>\n
     assistant_prompt_len = len(tokenizer(assistant_role_token, return_tensors = 'pt').input_ids[0])
 
-    for conversation, target in zip(conversations_list, targets):
+    #for conversation, target in zip(conversations_list, targets):
+    for idx, (conversation, target) in enumerate(zip(conversations_list, targets)): 
         #Total length of the conversation
         total_length = int(target.ne(tokenizer.pad_token_id).sum())
 
         #Split conversation into turns (each turn is a Assistant respone/or User prompt)
         turns = conversation.split(conv.separator_01)  #-> ['<|system|>...', '<|user|>...', '<|assistant|>...', '<|user|>...', ...]
+        
         current_length          = 1                            #Start from 1 to ignore the first token (BOS token)
         target[:current_length] = IGNORE_INDEX                 #Assign 'IGNORE_INDEX' -> BOS token
 
-        for i, turn in enumerate(turns):
+        for t_i, turn in enumerate(turns):
             #Skip empty turns
             if turn == "" or not turn:
                 break
@@ -379,16 +382,19 @@ def preprocess_zephyr(
 
             #MASK (IGNORE_INDEX) system + user -> Only Calculate loss for assistant responses
             not_assistant_turn = system_role_token in turn or user_role_token in turn
-
-            if has_image and '<image>' in turn_with_separator:
+            
+            if has_image: #and '<image>' in turn_with_separator:
             #Tokenize turn with image
                 turn_length = len(tokenizer_image_token(
                     prompt    = turn_with_separator,
                     tokenizer = tokenizer
-                ))
+                )) -2
             else:
             #Tokenize turn without image
-                turn_length = len(tokenizer(turn_with_separator, return_tensors = 'pt').input_ids)
+                turn_length = len(tokenizer(
+                    turn_with_separator,
+                    return_tensors = 'pt'
+                )['input_ids'][0]) -2 
             
             #Apply IGNORE_INDEX to system and user messages
             if not_assistant_turn:
@@ -663,6 +669,7 @@ def train(
 
     #Pass arguments to the Data Arguments
     training_args.mm_use_im_start_end = model_args.mm_use_im_start_end
+    data_args.mm_use_im_start_end     = model_args.mm_use_im_start_end
     model_args.image_aspect_ratio     = data_args.image_aspect_ratio
     data_args.mm_grid_pinpoints       = model_args.mm_grid_pinpoints
     if model_args.mm_grid_pinpoints is not None:
