@@ -36,7 +36,7 @@ class QFormerBlock(nn.Module):
 class QFormer(nn.Module):
     def __init__(self, config):
         super().__init__()
-        self.num_queries = 1
+        self.num_queries = 576
         self.hidden_size = config.hidden_size
 
         self.learned_queries = nn.Parameter(torch.randn(self.num_queries, self.hidden_size))
@@ -54,9 +54,9 @@ class QFormer(nn.Module):
         B = features.size(0)
         queries = self.learned_queries.unsqueeze(0).expand(B, -1, -1)
 
-        print(f"[INFO] Batch size (B): {B}")
-        print(f"[INFO] features.shape: {features.shapez}")
-        print(f"[INFO] queries.shape before adding text_embeddings: {queries.shape}")
+        # print(f"[INFO] Batch size (B): {B}")
+        # print(f"[INFO] features.shape: {features.shape}")
+        # print(f"[INFO] queries.shape before adding text_embeddings: {queries.shape}")
         
         if text_embeddings is not None:
             if isinstance(text_embeddings, list):
@@ -104,8 +104,8 @@ def build_multimodal_projector(config, **kwargs):
 
     projector_type = 'qformer'
 
-    print(f"[INFO] mm hidden size: {config.mm_hidden_size}")
-    print(f"[INFO] hidden size: {config.hidden_size}")
+    # print(f"[INFO] mm hidden size: {config.mm_hidden_size}")
+    # print(f"[INFO] hidden size: {config.hidden_size}")
 
     if projector_type == 'qformer':
         return QFormer(config)
