@@ -8,6 +8,7 @@ class QFormerBlock(nn.Module):
         super().__init__()
         self.self_attn = nn.MultiheadAttention(hidden_size, nhead, batch_first=True)
         self.cross_attn = nn.MultiheadAttention(
+            num_heads=nhead,
             embed_dim=4096,
             kdim=5120,
             vdim=5120,
@@ -42,7 +43,7 @@ class QFormer(nn.Module):
         self.blocks = nn.ModuleList([
             QFormerBlock(
                 hidden_size=self.hidden_size,
-                nhead= 8,
+                nhead= 8, #num_heads
                 ffn_dim= 4096
             )
             for _ in range(4)
@@ -52,6 +53,10 @@ class QFormer(nn.Module):
     def forward(self, features, text_embeddings=None):
         B = features.size(0)
         queries = self.learned_queries.unsqueeze(0).expand(B, -1, -1)
+
+        print(f"[INFO] Batch size (B): {B}")
+        print(f"[INFO] features.shape: {features.shapez}")
+        print(f"[INFO] queries.shape before adding text_embeddings: {queries.shape}")
         
         if text_embeddings is not None:
             if isinstance(text_embeddings, list):
@@ -77,7 +82,10 @@ class SimpleFeatureSingleModel(nn.Module):
         self.clip_layer_norm = nn.LayerNorm(num_clip_layers)
         self.final_linear    = final_linear
     
-    def forward(self, features, text_embeddings):
+    def forward(self, features):
+
+        print(f"[INFOR_MLP] features shape: {features.shape}")  # [B, T, D]
+
         #Apply LayerNorm to the input features
         v1_sum = self.clip_layer_norm(features)
         #Pass through the final linear layer
@@ -95,6 +103,9 @@ def build_multimodal_projector(config, **kwargs):
     projector_type = getattr(config, 'mm_projector_type', 'mlp2x_gelu')
 
     projector_type = 'qformer'
+
+    print(f"[INFO] mm hidden size: {config.mm_hidden_size}")
+    print(f"[INFO] hidden size: {config.hidden_size}")
 
     if projector_type == 'qformer':
         return QFormer(config)
