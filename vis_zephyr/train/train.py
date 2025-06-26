@@ -756,7 +756,7 @@ def train(
         
         #Gating
         if hasattr(model.get_model(), "vision_tower") and hasattr(model.get_model().vision_tower, "gating_fusion"):
-            for p in model.get_model().gating_fusion.parameters():
+            for p in model.get_model().vision_tower.gating_fusion.parameters():
                 p.requires_grad = True
         else:
             raise ValueError(
