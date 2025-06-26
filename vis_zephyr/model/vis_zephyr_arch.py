@@ -189,8 +189,8 @@ class VisZephyrMetaForCausalLM(ABC):
             image_features = self.encode_images(images, text_embeddings)
 
         # --- 2 --- COMBINE TEXT + IMAGE EMBEDDINGS ---------------------------------------------------------------------------------------------
-        print("===== Preparing Inputs and Labels for Multimodal =====")
-        print("Number of input_ids:", input_ids.shape[0], " and number of images:", len(image_features))
+        # print("===== Preparing Inputs and Labels for Multimodal =====")
+        # print("Number of input_ids:", input_ids.shape[0], " and number of images:", len(image_features))
         #Dummy Tensors
         _labels         = labels
         _position_ids   = position_ids
@@ -212,9 +212,9 @@ class VisZephyrMetaForCausalLM(ABC):
         cur_image_indice = 0  #Current index for image features
 
         #Remove padding if attention_mask is provided
-        print("=== Input IDs data type:", type(input_ids), " ", input_ids.shape)
+        # print("=== Input IDs data type:", type(input_ids), " ", input_ids.shape)
         input_ids  = [cur_input_ids[cur_attention_mask] for cur_input_ids, cur_attention_mask in zip(input_ids, attention_mask)]
-        print("=== Input IDs data type:", type(input_ids))
+        # print("=== Input IDs data type:", type(input_ids))
             #Input ids are now is list of tensors with shape (batch_size, seq_length)
         labels     = [curent_labels[cur_attention_mask] for curent_labels, cur_attention_mask in zip(labels, attention_mask)]
 
@@ -252,7 +252,7 @@ class VisZephyrMetaForCausalLM(ABC):
 
             #Embeding the text chunks without image tokens
             cur_input_embeds = self.get_model().embed_tokens(torch.cat(cur_input_ids_noimage))
-            print("=== Input Embeddings", cur_input_embeds[0])
+            # print("=== Input Embeddings", cur_input_embeds[0])
             cur_input_embeds_noimage = torch.split(cur_input_embeds, split_sizes, dim = 0)
 
             cur_input_embeds_with_image = [] #New input embeddings with image features

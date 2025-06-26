@@ -1,5 +1,4 @@
 #!/bin/bash
-
 # =======================================================================================
 #
 #       SCRIPT FOR STAGE 1 PRETRAINING (Vision-Zephyr)
@@ -17,8 +16,8 @@ WANDB_MODE=disabled deepspeed vis_zephyr/train/train_mem.py \
     --mm_projector_lr 2e-3 \
     --model_name_or_path "HuggingFaceH4/zephyr-7b-beta" \
     --version zephyr_v1 \
-    --data_path ./playground/data/pretrain/blip.json \
-    --image_folder ./playground/data/pretrain/images/ \
+    --data_path ./playground/train_gating_subset_10k.json \
+    --image_folder ./playground/images/train_images_10k \
     --mm_vision_tower "openai/clip-vit-large-patch14-336" \
     --mm_projector_type mlp2x_gelu \
     --mm_vision_select_layer="-2,-5,-8,-11,6" \
