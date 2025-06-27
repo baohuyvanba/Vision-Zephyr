@@ -749,6 +749,7 @@ def train(
         if hasattr(model.get_model(), "mm_projector"):
             for p in model.get_model().mm_projector.parameters():
                 p.requires_grad = True
+                rank0_print(f"Enabling training in mm_projector.")
         else:
             raise ValueError(
                 "model.get_model().mm_projector is not available."
@@ -758,6 +759,7 @@ def train(
         if hasattr(model.get_model(), "vision_tower") and hasattr(model.get_model().vision_tower, "gating_fusion"):
             for p in model.get_model().vision_tower.gating_fusion.parameters():
                 p.requires_grad = True
+                rank0_print(f"Enabling training in vision_tower.gating_fusion.")
         else:
             raise ValueError(
                 "model.get_model().vision_tower.gating_fusion is not available."
@@ -817,10 +819,10 @@ def train(
     # --- 9 --- TRAINING
     if list(pathlib.Path(training_args.output_dir).glob("checkpoint-*")):
         rank0_print("Resuming training from the last checkpoint.")
-        result = trainer.train(resume_from_checkpoint = True)
+        trainer.train(resume_from_checkpoint = True)
     else:
         rank0_print("Starting training from scratch.")
-        result = trainer.train()
+        trainer.train()
 
     # --- END BENCHMARK LOGGING ---
     if local_rank in (0, None):
@@ -847,6 +849,7 @@ def train(
         ]))
         with open(os.path.join(training_args.output_dir, "benchmark.csv"), "a") as f:
             f.write(csv_line + "\n")
+    # --- END LOGGING ---
 
     trainer.save_state()
     model.config.use_cache = True
