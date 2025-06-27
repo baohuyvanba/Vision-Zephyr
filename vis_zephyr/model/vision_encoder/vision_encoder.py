@@ -83,8 +83,17 @@ class CLIPVisionTower(nn.Module):
                 #Select features -> features list
                 image_features = self.feature_select(image_forward_output).to(image.dtype)
                 images_features_list.append(image_features)
-        else:
+        elif images.ndim == 4:
             #Batched images with [batch_size, channels, height, width]
+            image_forward_output = self.vision_tower(images.to(
+                device = self.device,
+                dtype  = self.dtype),
+                output_hidden_states = True
+            )
+            images_features_list = self.feature_select(image_forward_output).to(images.dtype)
+        else:
+            #Single image with [channels, height, width]
+            images = images.unsqueeze(0)
             image_forward_output = self.vision_tower(images.to(
                 device = self.device,
                 dtype  = self.dtype),

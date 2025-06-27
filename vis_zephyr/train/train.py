@@ -310,6 +310,43 @@ def preprocess_multimodal(
 
     return sources
 
+def preprocess_pretrain(
+    sources: Sequence[str],
+    tokenizer: transformers.PreTrainedTokenizer,
+) -> Dict:
+    conservations = []
+    #Create conservation only has: <Image> + Caption
+    for source in sources:
+        assert len(source) == 2 #Pretrain only has 2 messages: user -> assistant
+        assert DEFAULT_IMAGE_TOKEN in source[0]['value'], "Pretrain conversation must start with image token."
+
+        #Ignore the user message (question/prompt)
+        source[0]['value'] = DEFAULT_IMAGE_TOKEN
+        conservation = source[0]['value'] + source[1]['value'] + conv_lb.default_conversation.separator_01
+        conservations.append(conservation)
+
+    input_ids = [tokenizer_image_token(
+        prompt    = prompt,
+        tokenizer = tokenizer,
+        return_tensors = 'pt'
+    ) for prompt in conservations]
+    targets = copy.deepcopy(input_ids)
+
+    for target, source in zip(targets, sources):
+        #Get the length of the image token
+        image_index_token_length = len(tokenizer_image_token(
+            prompt    = source[0]['value'],
+            tokenizer = tokenizer,
+            return_tensors = 'pt'
+        ))
+        #Mask the image token in the target
+        target[:image_index_token_length] = IGNORE_INDEX
+    
+    return dict(
+        input_ids = input_ids,
+        labels    = targets,
+    )
+
 def preprocess_zephyr(
     sources  : Sequence[str],
     tokenizer: transformers.PreTrainedTokenizer,
@@ -438,11 +475,16 @@ def preprocess(
     """
     Main Preprocessing function that handles both text and multimodal data.
     """
-    if conv_lb.templates["default"].separator_style == conv_lb.SeparatorStyle.ZEPHYR:
+    if conv_lb.default_conversation.separator_style == conv_lb.SeparatorStyle.ZEPHYR:
         return preprocess_zephyr(
             sources   = sources,
             tokenizer = tokenizer,
             has_image = has_image
+        )
+    elif conv_lb.default_conversation.separator_style == conv_lb.SeparatorStyle.PLAIN:
+        return preprocess_pretrain(
+            sources   = sources,
+            tokenizer = tokenizer
         )
     
     raise ValueError(f"Unsupported conversation version: {conv_lb.default_conversation.version}. Supported: zephyr_v1.")
