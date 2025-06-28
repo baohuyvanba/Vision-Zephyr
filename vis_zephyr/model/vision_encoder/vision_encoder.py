@@ -8,7 +8,7 @@ import torch
 import torch.nn as nn
 from transformers import CLIPVisionModel, CLIPImageProcessor, CLIPVisionConfig
 
-from vis_zephyr.model.gating_fusion import GatedFeaturesFusion
+from vis_zephyr.model.gating_fusion import CAGFRFusion
 
 class CLIPVisionTower(nn.Module):
     """
@@ -51,11 +51,16 @@ class CLIPVisionTower(nn.Module):
         #     input_dim  = self.vision_tower.config.hidden_size,
         #     hidden_dim = self.vision_tower.config.hidden_size // 2
         # )
-        self.gating_fusion   = GatedFeaturesFusion(
-            num_layers = len(self.select_layers),
-            input_dim  = self.vision_tower.config.hidden_size,
+        # self.gating_fusion   = GatedFeaturesFusion(
+        #     num_layers = len(self.select_layers),
+        #     input_dim  = self.vision_tower.config.hidden_size,
+        # )
+        self.gating_fusion = CAGFRFusion(
+            num_layers  = len(self.select_layers),
+            channel_dim = self.vision_tower.config.hidden_size,
         )
-        
+
+
         #Freeze the vision tower parameters
         self.vision_tower.requires_grad_(False)
         self.is_loaded = True
@@ -153,7 +158,7 @@ class CLIPVisionTower(nn.Module):
     @property
     def hidden_size(self):
         """Return the hidden size of the vision tower."""
-        return self.vision_tower.config.hidden_size #*len(self.select_layers)
+        return self.vision_tower.config.hidden_size *len(self.select_layers)
     
     @property
     def num_patches(self):

@@ -1,1 +1,1 @@
-from .mean_gating_fusion import GatedFeaturesFusion
+from .mean_gating_fusion import CAGFRFusion
