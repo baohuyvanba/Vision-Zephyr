@@ -731,7 +731,7 @@ def train(
     if attn_implementation is not None:
         rank0_print(f"Using attention implementation: {attn_implementation}")
 
-    #Pass arguments to the Data Arguments
+    #Pass Arguments to the Data Arguments
     training_args.mm_use_im_start_end = model_args.mm_use_im_start_end
     data_args.mm_use_im_start_end     = model_args.mm_use_im_start_end
     model_args.image_aspect_ratio     = data_args.image_aspect_ratio
@@ -740,10 +740,10 @@ def train(
         rank0_print(f"Using mm_grid_pinpoints: {model_args.mm_grid_pinpoints}")
 
     # --- 1 --- Set up: Model Loading and Configuration ------------------------------------------------------------------------------
-    #Datatype
     compute_dtype = (
-        torch.float16 if training_args.fp16 else (torch.bfloat16 if training_args.bf16 else torch.float32)
+        torch.float16 if training_args.fp16 else (torch.bfloat16 if training_args.bf16 else torch.float32) #Datatype
     )
+    
     ###HOOK: Quantization
     
     #Loading model
@@ -756,6 +756,7 @@ def train(
     )
     model.config.use_cache = False
 
+    #Freeze backbone model
     if model_args.freeze_backbone:
         model.model.requires_grad_(False)
     
@@ -799,7 +800,7 @@ def train(
         dtype  = torch.bfloat16 if training_args.bf16 else torch.float16
     )
     data_args.image_processor = vision_tower.image_processor
-    data_args.is_multimodal = True
+    data_args.is_multimodal   = True
 
     # --- 5 --- Configs Multimodal Project Training ----------------------------------------------------------------------------------
     model.config.tune_mm_mlp_adapter = training_args.tune_mm_mlp_adapter = model_args.tune_mm_mlp_adapter
@@ -828,6 +829,7 @@ def train(
                 "model.get_model().vision_tower.gating_fusion is not available."
             )
     
+    # > Fine-tune: Stage 2
     #Freeze MLP adapter
     model.config.freeze_mm_mlp_adapter = training_args.freeze_mm_mlp_adapter
     if training_args.freeze_mm_mlp_adapter:
@@ -930,6 +932,3 @@ def train(
 
 if __name__ == "__main__":
     train()
-
-# if __name__ == "__main__":
-#     train(attn_implementation = "flash_attention_2")
