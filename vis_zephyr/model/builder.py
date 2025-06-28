@@ -2,9 +2,9 @@
 # File: vis_zephyr/model/builder.py
 # Description: Handles the loading of pre-trained Vision-Zephyr models (including LLM Backbone, Projector, Vision Encoder).
 # =================================================================================================
-from logging import config
 import os
 import torch
+import warnings
 from transformers import AutoTokenizer, AutoConfig, BitsAndBytesConfig
 
 from .language_model import VisZephyrForCausalLM
@@ -52,7 +52,6 @@ def load_pretrained_model(
     if 'lora' in model_name.lower() and model_base is not None:
         print("=== Loading Zephyr LLM Backbone with LoRA from base path ===")
         from peft import PeftModel
-
         #Loading the configuration
         lora_cfg_pretrained = AutoConfig.from_pretrained(model_path)
         #Loading the tokenizer from base LLM backbone
@@ -76,6 +75,7 @@ def load_pretrained_model(
         print("=== Loading MultiModal Projector ===")
         if os.path.exists(os.path.join(model_path, 'non_lora_trainables.bin')):
             non_lora_trainables = torch.load(os.path.join(model_path, 'non_lora_trainables.bin'), map_location = 'cpu')
+        #HOOK: load model on HG
         
         #Clean up the keys (cause by standard DeepSpeed/FSDP) to match the model's state_dict
         non_lora_trainables = {(k[11:] if k.startswith('base_model.') else k): v for k, v in non_lora_trainables.items()}
@@ -89,11 +89,14 @@ def load_pretrained_model(
             model,
             model_path,
         )
-
         #Merge LoRA weights into the model
         print("=== Merging LoRA weights into the model ===")
         model = model.merge_and_unload()
-
+    
+    #>>> Load LoRA finetuned Model but no model_base
+    elif 'lora' in model_name.lower() and model_base is None:
+        warnings.warn('There is `lora` in model name but no `model_base` is provided. If you are loading a LoRA model, please provide the `model_base` argument.')
+    
     #>>> Load Model without LoRA
     elif model_base is not None:
         #Load Vis-Zephyr LLM backbone model -----------------------------------------------------------------------------------------
