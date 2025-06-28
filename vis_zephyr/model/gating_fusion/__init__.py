@@ -1,1 +1,1 @@
-from .mean_gating_fusion import MeanGatedFeaturesFusion
+from .mean_gating_fusion import GatedFeaturesFusion

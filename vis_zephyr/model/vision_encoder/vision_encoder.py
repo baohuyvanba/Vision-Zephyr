@@ -8,7 +8,7 @@ import torch
 import torch.nn as nn
 from transformers import CLIPVisionModel, CLIPImageProcessor, CLIPVisionConfig
 
-from vis_zephyr.model.gating_fusion import MeanGatedFeaturesFusion
+from vis_zephyr.model.gating_fusion import GatedFeaturesFusion
 
 class CLIPVisionTower(nn.Module):
     """
@@ -46,10 +46,14 @@ class CLIPVisionTower(nn.Module):
         #Load Image Processor and Vision Tower
         self.image_processor = CLIPImageProcessor.from_pretrained(self.vision_tower_path)
         self.vision_tower    = CLIPVisionModel.from_pretrained(self.vision_tower_path)
-        self.gating_fusion   = MeanGatedFeaturesFusion(
+        # self.gating_fusion   = MeanGatedFeaturesFusion(
+        #     num_layers = len(self.select_layers),
+        #     input_dim  = self.vision_tower.config.hidden_size,
+        #     hidden_dim = self.vision_tower.config.hidden_size // 2
+        # )
+        self.gating_fusion   = GatedFeaturesFusion(
             num_layers = len(self.select_layers),
             input_dim  = self.vision_tower.config.hidden_size,
-            hidden_dim = self.vision_tower.config.hidden_size // 2
         )
         
         #Freeze the vision tower parameters
