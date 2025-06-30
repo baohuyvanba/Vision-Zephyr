@@ -8,7 +8,7 @@ import torch
 import torch.nn as nn
 from transformers import CLIPVisionModel, CLIPImageProcessor, CLIPVisionConfig
 
-from vis_zephyr.model.gating_fusion import CAGFRFusion
+from vis_zephyr.model.gating_fusion import MultiLayerFeatureFusion
 
 class CLIPVisionTower(nn.Module):
     """
@@ -55,7 +55,7 @@ class CLIPVisionTower(nn.Module):
         #     num_layers = len(self.select_layers),
         #     input_dim  = self.vision_tower.config.hidden_size,
         # )
-        self.gating_fusion = CAGFRFusion(
+        self.gating_fusion = MultiLayerFeatureFusion(
             num_layers  = len(self.select_layers),
             channel_dim = self.vision_tower.config.hidden_size,
         )

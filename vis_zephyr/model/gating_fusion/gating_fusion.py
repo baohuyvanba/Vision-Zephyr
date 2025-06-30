@@ -6,65 +6,65 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-class ChannelWiseGatedSE(nn.Module):
+class ChannelWiseGatedFusion(nn.Module):
     """
-    Applies channel-wise Squeeze-and-Excitation and a GLU-like gate to a feature tensor.
+    Applies channel-wise feature reweighting using: 
+      - Squeeze-and-Excitation (SE);
+      - GLU-inspired gating mechanism.
     """
     def __init__(self, channel_dim, reduction=16):
         super().__init__()
-        # Squeeze-and-Excitation part
-        self.fc1 = nn.Linear(channel_dim, channel_dim // reduction, bias=False)
-        self.fc2 = nn.Linear(channel_dim // reduction, channel_dim, bias=False)
-        # Gated Linear Unit (GLU) part
-        self.gate = nn.Linear(channel_dim, channel_dim, bias=False)
+        reduced_dim = channel_dim // reduction
+
+        #Squeeze-and-Excitation (SE) layers (MLP layers)
+        self.fc1 = nn.Linear(channel_dim, reduced_dim, bias = False)
+        self.fc2 = nn.Linear(reduced_dim, channel_dim, bias = False)
+        
+        #Gated Linear Unit (GLU) layer: channel's importance
+        self.gate = nn.Linear(channel_dim, channel_dim, bias = False)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # x: [B, P, C] - B: batch, P: patches, C: channel_dim
+        #x: [B, P, D] - B: batch, P: patches, D: dim
         B, P, C = x.shape
         
-        # Squeeze: global average pooling across the patch dimension (P)
-        squeeze = x.mean(dim=1)  # -> [B, C]
+        #1. Global average pooling across the patch dimension (P) -> Global context: [B, D]
+        pooled_patch = x.mean(dim = 1)
         
-        # Excitation path
-        excitation = F.relu(self.fc1(squeeze))
-        excitation = torch.sigmoid(self.fc2(excitation))  # -> [B, C]
+        #2. SE path
+        se = F.relu(self.fc1(pooled_patch))  # -> [D, D//r]
+        se = torch.sigmoid(self.fc2(se))     # -> [D//r, D]
         
-        # Gating path (GLU-like)
-        gate_weights = torch.sigmoid(self.gate(squeeze))  # -> [B, C]
+        #3. Gating path 
+        gate_weights = torch.sigmoid(self.gate(pooled_patch))  # -> [B, D]
         
-        # Combine weights and apply to the input tensor
-        # The weights are broadcast across the patch dimension
-        return x * (excitation * gate_weights).unsqueeze(1)
+        #4. Combine weights and apply to the input tensor
+        combined_weight = (se * gate_weights).unsqueeze(1)     # -> [B, 1, D]
 
-class CAGFRFusion(nn.Module):
+        return x * combined_weight
+
+class MultiLayerFeatureFusion(nn.Module):
     """
-    Fuses a list of feature tensors by applying channel-wise gating to each
-    and then concatenating the results.
+    Fuses multiple feature tensors (from different layers) using channel-wise gated fusion
+    -> Concatenates the results along the channel dimension.
     """
     def __init__(self, num_layers: int, channel_dim: int, reduction: int = 16):
         super().__init__()
-        self.num_layers = num_layers
+        self.num_layers  = num_layers
         self.channel_dim = channel_dim
         
-        # Create a specific gating module for each feature layer
+        # ChannelWiseGatedFusion module ~ each input feature
         self.gated_modules = nn.ModuleList([
-            ChannelWiseGatedSE(channel_dim, reduction) for _ in range(num_layers)
+            ChannelWiseGatedFusion(channel_dim, reduction) for _ in range(num_layers)
         ])
 
     def forward(self, features_list: list) -> torch.Tensor:
-        # Apply the corresponding gating module to each feature tensor in the list
+        #Apply channel-wise gating to each layer's features
         gated_features = [
             self.gated_modules[i](features_list[i]) for i in range(self.num_layers)
         ]
         
-        # Concatenate the re-weighted features along the channel dimension
-        # Output shape: [B, P, C * num_layers]
-        return torch.cat(gated_features, dim=-1)
-
-
-
-
-
+        #Concatenate the re-weighted features along the channel dimension
+        return torch.cat(gated_features, dim = -1) #[B, P, C * num_layers]
 
 # class GatedFeaturesFusion(nn.Module):
 #     """
