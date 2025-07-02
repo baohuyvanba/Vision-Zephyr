@@ -16,7 +16,7 @@ deepspeed vis_zephyr/train/train_mem.py \
     --tune_mm_mlp_adapter True \
     --mm_projector_lr 2e-3 \
     --model_name_or_path "HuggingFaceH4/zephyr-7b-beta" \
-    --version zephyr_v1 \
+    --version plain \
     --data_path ./playground/data/pretrain/blip.json \
     --image_folder ./playground/data/pretrain/images/ \
     --mm_vision_tower "openai/clip-vit-large-patch14-336" \
