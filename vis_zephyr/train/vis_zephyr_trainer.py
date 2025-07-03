@@ -301,12 +301,15 @@ class VisZephyrTrainer(Trainer):
 
             return self.optimizer
     
-    def _save_checkpoint(self, model, trial, metrics=None):
+    def _save_checkpoint(self, model, trial, metrics = None):
         """
         Save the model checkpoint.
           - Overridden -> handle multi-stage training checkpoints.
           - In Pretraining Stage: save the mm_projector state only.
         """
+        #Default checkpoint saving
+        super(VisZephyrTrainer)._save_checkpoint(model, trial, metrics = metrics)
+
         #Pretraining Stage: only save the mm_projector state
         if getattr(self.args, 'tune_mm_mlp_adapter', False):
             from transformers.trainer_utils import PREFIX_CHECKPOINT_DIR
@@ -317,9 +320,12 @@ class VisZephyrTrainer(Trainer):
 
             #Only save the mm_projector state (Adapter)
             keys_to_match  = ['mm_projector', 'vision_resampler']
+            
+            #Add special token keys
             if getattr(self.args, 'mm_use_im_start_end', False):
                 keys_to_match.extend(['embed_tokens', 'embed_in'])
 
+            #Get weights to save
             weigth_to_save = get_mm_adapter_state_maybe_zero(
                 self.model.named_parameters(),
                 keys_to_match
@@ -327,13 +333,13 @@ class VisZephyrTrainer(Trainer):
             
             #Create the output directory
             if self.args.local_rank <= 0:
-                self.model.config.save_pretrained(output_dir)
+                # self.model.config.save_pretrained(output_dir)
                 torch.save(weigth_to_save, os.path.join(output_dir, 'mm_projector.bin'))
                 logger.info(f"Saved mm_projector state to {output_dir}/mm_projector.bin")
         
-        else:   
-            #Default checkpoint saving
-            super(VisZephyrTrainer)._save_checkpoint(model, trial, metrics = metrics)
+        # #Default checkpoint saving
+        # else:
+        #     super(VisZephyrTrainer)._save_checkpoint(model, trial, metrics = metrics)
 
     def _save(
         self,
