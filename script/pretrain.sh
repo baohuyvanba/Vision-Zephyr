@@ -25,7 +25,7 @@ deepspeed vis_zephyr/train/train_mem.py \
     --mm_grid_pinpoints "'[[336, 672], [672, 336], [336, 1008], [1008, 336]]'" \
     --mm_use_im_start_end False \
     --mm_use_im_patch_token False \
-    --group_by_modality_length True\
+    --group_by_modality_length True \
     --image_aspect_ratio anyres \
     --group_by_modality_length True \
     --bf16 True \

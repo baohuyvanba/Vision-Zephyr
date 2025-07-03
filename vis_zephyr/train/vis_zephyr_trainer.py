@@ -158,13 +158,13 @@ def get_length_grouped_indices_by_modality(lengths, batch_size, world_size, gene
         lengths    = multimodal_lengths,
         batch_size = batch_size,
         world_size = world_size,
-        generator  = None
+        generator  = generator
     )]
     language_shuffle = [language_indices[i] for i in get_length_grouped_indices(
         lengths    = language_lengths,
         batch_size = batch_size,
         world_size = world_size,
-        generator  = None
+        generator  = generator
     )]
 
     #Create megabatches for each modality: Internal Length Grouping
