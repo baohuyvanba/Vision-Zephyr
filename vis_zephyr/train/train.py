@@ -13,6 +13,7 @@ import pathlib
 import random
 import re
 from typing import Dict, Optional, Sequence
+import numpy as np
 
 import torch
 import transformers
@@ -35,6 +36,15 @@ def rank0_print(*args):
     """
     if local_rank == 0:
         print(*args)
+
+def set_seed(seed: int):
+    """
+    Sets the seed for reproducibility.
+    """
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
 
 #------------------------------------------------------------------------------------------------------------------------------------
 # ARGUMENTS CLASS 
@@ -660,6 +670,8 @@ def train(
 ):
     global local_rank
     parser = transformers.HfArgumentParser((ModelArguments, DataArguments, TrainingArguments))
+
+    set_seed(0)
     
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
     local_rank = training_args.local_rank
