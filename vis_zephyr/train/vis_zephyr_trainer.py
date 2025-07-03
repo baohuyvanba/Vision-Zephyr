@@ -308,7 +308,7 @@ class VisZephyrTrainer(Trainer):
           - In Pretraining Stage: save the mm_projector state only.
         """
         #Default checkpoint saving
-        super(VisZephyrTrainer)._save_checkpoint(model, trial, metrics = metrics)
+        super()._save_checkpoint(model, trial, metrics = metrics)
 
         #Pretraining Stage: only save the mm_projector state
         if getattr(self.args, 'tune_mm_mlp_adapter', False):
