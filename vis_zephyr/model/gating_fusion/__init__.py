@@ -1,1 +1,1 @@
-from .gating_fusion import MultiLayerFeatureFusion
+from .gating_fusion import MultiLayerFeatureFusionMLP
