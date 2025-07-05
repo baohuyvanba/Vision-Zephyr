@@ -307,8 +307,8 @@ class VisZephyrTrainer(Trainer):
           - Overridden -> handle multi-stage training checkpoints.
           - In Pretraining Stage: save the mm_projector state only.
         """
-        #Default checkpoint saving
-        super()._save_checkpoint(model, trial, metrics = metrics)
+        #(test) Full model checkpoint saving
+        #super()._save_checkpoint(model, trial)
 
         #Pretraining Stage: only save the mm_projector state
         if getattr(self.args, 'tune_mm_mlp_adapter', False):
@@ -337,9 +337,9 @@ class VisZephyrTrainer(Trainer):
                 torch.save(weigth_to_save, os.path.join(output_dir, 'mm_projector.bin'))
                 logger.info(f"Saved mm_projector state to {output_dir}/mm_projector.bin")
         
-        # #Default checkpoint saving
-        # else:
-        #     super(VisZephyrTrainer)._save_checkpoint(model, trial, metrics = metrics)
+        #Default checkpoint saving
+        else:
+            super(VisZephyrTrainer)._save_checkpoint(model, trial)
 
     def _save(
         self,
