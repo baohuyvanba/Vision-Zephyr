@@ -333,7 +333,7 @@ class VisZephyrTrainer(Trainer):
         
         else:   
             #Default checkpoint saving
-            super(VisZephyrTrainer, self)._save_checkpoint(model, trial, metrics = metrics)
+            super(VisZephyrTrainer, self)._save_checkpoint(model, trial) #, metrics = metrics)
 
     def _save(
         self,
