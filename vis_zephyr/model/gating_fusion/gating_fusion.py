@@ -2,38 +2,82 @@
 # File: vis_zephyr/model/vision_encoder/gatingmlp.py
 # Description: Implements a Gating MLP mechanism for fusing features from multiple layers.
 # =================================================================================================
+from curses import start_color
+from click import group
+from numpy import concatenate
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-class MultiLayerFeatureFusionMLP(nn.Module):
+
+class DenseChannelIntegrationFusion(nn.Module):
     """
-    Fusion 5 lớp đặc trưng bằng MLP: ghép nối theo chiều kênh và đưa qua hai lớp Linear.
-    Kết quả: [B, P, C * num_layers].
     """
-    def __init__(self, num_layers: int, channel_dim: int):
+    def __init__(self, num_groups: int = 4):
         super().__init__()
-        self.num_layers = num_layers
-        self.channel_dim = channel_dim
-        # MLP: đầu vào C*num_layers, ẩn và đầu ra cùng C*num_layers
-        hidden_dim = channel_dim * num_layers
-        self.fc = nn.Sequential(
-            nn.Linear(channel_dim * num_layers, hidden_dim),
-            nn.ReLU(inplace=True),
-            nn.Linear(hidden_dim, channel_dim * num_layers)
-        )
+        if num_groups < 0:
+            raise ValueError("Number of groups must be a positive integer.")
+        self.num_groups = num_groups
 
     def forward(self, features_list: list) -> torch.Tensor:
-        # features_list gồm N tensor [B,P,C]
-        B, P, C = features_list[0].shape
-        # 1. Ghép nối theo chiều kênh -> [B, P, C*num_layers]
-        x = torch.cat(features_list, dim=-1)
-        # 2. Áp dụng MLP từng patch: chuyển về [B*P, C*N]
-        x = x.view(B*P, self.channel_dim * self.num_layers)
-        x = self.fc(x)            # [B*P, C*N]
-        x = x.view(B, P, self.channel_dim * self.num_layers)
-        return x
+        """ """
+        if len(features_list) < self.num_groups + 1:
+            raise ValueError(f"Expected at least {self.num_groups + 1} feature tensors (including each feature for each group and final layer), got {len(features_list)}.")
+        
+        final_features_layer  =  features_list[-1]  # Last layer features
+        intermediate_features = features_list[:-1]  # All but the last layer features
+        num_intermediate      = len(intermediate_features)
 
+        if num_intermediate % self.num_groups != 0:
+            raise ValueError(f"Number of intermediate features ({num_intermediate}) must be divisible by num_groups ({self.num_groups}).")
+        
+        layers_per_group = num_intermediate // self.num_groups
+        fused_features_group = []
+        for i in range(self.num_groups):
+            start_idx = i * layers_per_group
+            end_inx   = start_idx + layers_per_group
+
+            group_features = intermediate_features[start_idx:end_inx]
+
+            stacked_group_features = torch.stack(group_features, dim = 0)  # [G, B, P, C]
+            summed_group_features  = stacked_group_features.sum(dim = 0)   # [B, P, C]
+            
+            fused_features_group.append(summed_group_features)
+        
+        all_fused_features = fused_features_group + [final_features_layer]  # [B, P, C]*5
+        concatenated_features = torch.cat(all_fused_features, dim = -1)     # [B, P, C * 5]
+
+        return concatenated_features
+
+# METHOD 4: Concat -> MLP
+# class MultiLayerFeatureFusionMLP(nn.Module):
+#     """
+#     Fusion 5 lớp đặc trưng bằng MLP: ghép nối theo chiều kênh và đưa qua hai lớp Linear.
+#     Kết quả: [B, P, C * num_layers].
+#     """
+#     def __init__(self, num_layers: int, channel_dim: int):
+#         super().__init__()
+#         self.num_layers = num_layers
+#         self.channel_dim = channel_dim
+#         # MLP: đầu vào C*num_layers, ẩn và đầu ra cùng C*num_layers
+#         hidden_dim = channel_dim * num_layers
+#         self.fc = nn.Sequential(
+#             nn.Linear(channel_dim * num_layers, hidden_dim),
+#             nn.ReLU(inplace=True),
+#             nn.Linear(hidden_dim, channel_dim * num_layers)
+#         )
+
+#     def forward(self, features_list: list) -> torch.Tensor:
+#         # features_list gồm N tensor [B,P,C]
+#         B, P, C = features_list[0].shape
+#         # 1. Ghép nối theo chiều kênh -> [B, P, C*num_layers]
+#         x = torch.cat(features_list, dim=-1)
+#         # 2. Áp dụng MLP từng patch: chuyển về [B*P, C*N]
+#         x = x.view(B*P, self.channel_dim * self.num_layers)
+#         x = self.fc(x)            # [B*P, C*N]
+#         x = x.view(B, P, self.channel_dim * self.num_layers)
+
+# METHOD 3:
 # class ChannelWiseGatedFusion(nn.Module):
 #     """
 #     Applies channel-wise feature reweighting using: 
@@ -94,6 +138,7 @@ class MultiLayerFeatureFusionMLP(nn.Module):
 #         #Concatenate the re-weighted features along the channel dimension
 #         return torch.cat(gated_features, dim = -1) #[B, P, C * num_layers]
 
+# METHOD 2:
 # class GatedFeaturesFusion(nn.Module):
 #     """
 #     Fuses a list of feature tensors using a combination of learnable global weights
@@ -125,8 +170,7 @@ class MultiLayerFeatureFusionMLP(nn.Module):
         
 #         return self.layer_norm(fused_features)
         
-
-
+# METHOD 1: Mean
 # class MeanGatedFeaturesFusion(nn.Module):
 #     """
 #     Fuses a list of feature tensors using a learned gating mechanism.

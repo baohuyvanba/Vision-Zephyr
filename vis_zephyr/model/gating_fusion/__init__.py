@@ -1,1 +1,1 @@
-from .gating_fusion import MultiLayerFeatureFusionMLP
+from .gating_fusion import DenseChannelIntegrationFusion
