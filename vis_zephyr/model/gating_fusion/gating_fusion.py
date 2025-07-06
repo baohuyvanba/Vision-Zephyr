@@ -39,10 +39,10 @@ class DenseChannelIntegrationFusion(nn.Module):
 
             group_features = intermediate_features[start_idx:end_inx]
 
-            stacked_group_features = torch.stack(group_features, dim = 0)  # [G, B, P, C]
-            summed_group_features  = stacked_group_features.sum(dim = 0)   # [B, P, C]
+            stacked_group_features = torch.stack(group_features, dim = 0)      # [G, B, P, C]
+            mean_group_features    = torch.mean(stacked_group_features, dim=0) # [B, P, C]
             
-            fused_features_group.append(summed_group_features)
+            fused_features_group.append(mean_group_features)
         
         all_fused_features = fused_features_group + [final_features_layer]  # [B, P, C]*5
         concatenated_features = torch.cat(all_fused_features, dim = -1)     # [B, P, C * 5]
