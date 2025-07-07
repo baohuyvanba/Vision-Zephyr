@@ -116,10 +116,10 @@ class VisZephyrMetaForCausalLM(ABC):
         """Returns the vision tower instance of the model."""
         return self.get_model().get_vision_tower()
 
-    def encode_images(self, images):
+    def encode_images(self, images, text_embeddings):
         """Encodes images using the Vision Encoder & Multimodal Projector of the model."""
         image_features     = self.get_model().get_vision_tower()(images)
-        projected_features = self.get_model().mm_projector(image_features)
+        projected_features = self.get_model().mm_projector(image_features, text_embeddings=text_embeddings)
         return projected_features
 
     #----------------------------------------------------------------------------------------------------------------------------------
@@ -146,7 +146,19 @@ class VisZephyrMetaForCausalLM(ABC):
         #Pure LLM without images
         if vision_tower is None or images is None or input_ids.shape[1] == 1:
             return input_ids, position_ids, attention_mask, past_key_values, None, labels
-
+        
+        #Get text embeddings only
+        text_embeddings = []
+        for cur_input_ids in input_ids:
+            text_only_ids = cur_input_ids[cur_input_ids != IMAGE_TOKEN_INDEX]
+            
+            cur_text_embed = self.get_model().embed_tokens(text_only_ids)
+            
+            if self.device is not None:
+                cur_text_embed = cur_text_embed.to(self.device)
+            
+            text_embeddings.append(cur_text_embed)
+        
         # --- 1 --- EMBEDDING IMAGE: Image -> Features -> Projected Features ----------------------------------------------------------------------
         if type(images) is list or images.ndim == 5:
             #If images is a list of tensors or a 5D tensor -> process them separately
@@ -161,7 +173,7 @@ class VisZephyrMetaForCausalLM(ABC):
             concat_images  = torch.cat([image for image in images], dim=0)
             
             #IMAGE ENCODING & PROJECTING
-            image_features = self.encode_images(concat_images)
+            image_features = self.encode_images(concat_images, text_embeddings)
 
             split_sizes    = [image.shape[0] for image in images]
             image_features = torch.split(image_features, split_sizes, dim=0)
@@ -174,7 +186,7 @@ class VisZephyrMetaForCausalLM(ABC):
             )
         else:
             #If images is a single tensor (C, H, W) - only 1 image
-            image_features = self.encode_images(images)
+            image_features = self.encode_images(images, text_embeddings)
 
         # --- 2 --- COMBINE TEXT + IMAGE EMBEDDINGS ---------------------------------------------------------------------------------------------
         #Dummy Tensors

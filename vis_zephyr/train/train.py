@@ -15,6 +15,7 @@ import json
 import pathlib
 import random
 from typing import Dict, Optional, Sequence
+import numpy as np
 
 import torch
 import transformers
@@ -724,6 +725,8 @@ def train(
 ):
     global local_rank
     parser = transformers.HfArgumentParser((ModelArguments, DataArguments, TrainingArguments))
+
+    set_seed(0)
     
     set_seed(0)
 
