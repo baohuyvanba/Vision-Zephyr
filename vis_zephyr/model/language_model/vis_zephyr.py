@@ -64,7 +64,7 @@ class VisZephyrForCausalLM(MistralForCausalLM, VisZephyrMetaForCausalLM):
             return_dict         : Optional[bool]                    = None,
             **kwargs
     ) -> Union[Tuple, CausalLMOutputWithPast]:
-        #Prepare Inputs_Embeds if it's not provided
+        
         if inputs_embeds is None:
             (
                 input_ids,

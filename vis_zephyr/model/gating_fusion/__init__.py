@@ -1,0 +1,1 @@
+from .gating_fusion import DenseChannelIntegrationFusion

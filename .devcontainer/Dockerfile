@@ -73,3 +73,5 @@ RUN git clone https://username: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@github.c
 #     wget -c https://huggingface.co/datasets/liuhaotian/Pretrain/resolve/main/blip_laion_cc_sbu_558k_meta.json && \
 #     wget -c https://huggingface.co/datasets/liuhaotian/Pretrain/resolve/main/blip_laion_cc_sbu_558k.json && \
 #     wget -c https://huggingface.co/datasets/liuhaotian/Pretrain/resolve/main/images.zip
+
+# git clone --branch Gating --single-branch https://username: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@github.com/baohuyvanba/Vision-Zephyr.git

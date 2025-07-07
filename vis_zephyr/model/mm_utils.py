@@ -101,6 +101,8 @@ def tokenizer_image_token(
     """Input Prompt -> Split into chunks by <image> placeholder -> Tokenize text parts -> Add specific image token (-200)"""
 
     #Split input prompt by <image> placeholder and Tokenize each
+    #print(f"Tokenizing prompt: {prompt}", f"with chunks: {prompt.split('<image>')}")
+
     prompt_chunks = [
         tokenizer(chunk).input_ids
         for chunk in prompt.split('<image>')
