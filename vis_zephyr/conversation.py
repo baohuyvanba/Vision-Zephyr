@@ -12,6 +12,7 @@ class SeparatorStyle(Enum):
     Different separator styles, used in conversation formatting.
     """
     ZEPHYR = auto()
+    PLAIN  = auto()
 
 @dataclasses.dataclass
 class Conversation:
@@ -90,6 +91,17 @@ conv_zephyr_v1 = Conversation(
     version = "zephyr_v1",
 )
 
+conv_zephyr_plain = Conversation(
+    system = "",
+    roles = ("", ""),
+    messages = (),
+    offset = 0,
+    separator_style = SeparatorStyle.PLAIN,
+    separator_01 = "</s>",
+    separator_02 = None,
+    version = "plain",
+)
+
 #Default conversation
 default_conversation = conv_zephyr_v1
 
@@ -97,6 +109,7 @@ default_conversation = conv_zephyr_v1
 templates = {
     "default"  : conv_zephyr_v1,
     "zephyr_v1": conv_zephyr_v1,
+    "plain"    : conv_zephyr_plain,
 }
 
 if __name__ == "__main__":
