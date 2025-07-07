@@ -5,25 +5,27 @@
 #                - Handles argument parsing, model/tokenizer loading, LoRA setup;
 #                - Include data preprocessing, and orchestrates the training process.
 #==================================================================================================
+import time
+import psutil
+
 import os
 import copy
 from dataclasses import dataclass, field
 import json
 import pathlib
 import random
-import re
 from typing import Dict, Optional, Sequence
-import numpy as np
 
 import torch
 import transformers
+import numpy as np
 from torch.utils.data import Dataset
 from PIL import Image
 
 from vis_zephyr.constants import ( DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN, IGNORE_INDEX, DEFAULT_IMAGE_TOKEN)
 from vis_zephyr.model.vip_processor.configuration import visual_prompt_config
 from vis_zephyr.model.vip_processor.processor import visual_prompt_process
-from vis_zephyr.train.vis_zephyr_trainer import VisZephyrTrainer
+from vis_zephyr.train.vis_zephyr_trainer import VisZephyrTrainer, maybe_zero
 from vis_zephyr import conversation as conv_lb
 from vis_zephyr.model import VisZephyrForCausalLM
 from vis_zephyr.model.mm_utils import tokenizer_image_token
@@ -45,6 +47,8 @@ def set_seed(seed: int):
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark     = False
 
 #------------------------------------------------------------------------------------------------------------------------------------
 # ARGUMENTS CLASS 
@@ -158,7 +162,7 @@ class TrainingArguments(transformers.TrainingArguments):
     )
 
     #LoRA Arguments
-    lora_enable : bool  = False
+    lora_enable : bool  = False #turn LoRA on or off
     lora_r      : int   = 64
     lora_alpha  : int   = 16
     lora_dropout: float = 0.05
@@ -178,7 +182,6 @@ def get_peft_state_maybe_zero(named_parameters, bias):
     """
     Get PEFT state dictionary, handling zero sharding
     """
-    from vis_zephyr.train.vis_zephyr_trainer import maybe_zero
 
     if bias == "none":
         #Get all LoRA parameters
@@ -235,6 +238,7 @@ def find_all_linear_names(model):
             names = name.split('.')
             lora_module_names.add(names[0] if len(names) == 1 else names[-1])
     
+    #Pass lm_head
     if 'lm_head' in lora_module_names:
         lora_module_names.remove('lm_head')
     
@@ -253,18 +257,26 @@ def safe_save_model_for_hf_trainer(
         from vis_zephyr.train.vis_zephyr_trainer import get_mm_adapter_state_maybe_zero
         
         keys_to_match = ['mm_projector']
+        if getattr(trainer.args, "use_im_start_end", False):
+            keys_to_match.extend(['embed_tokens', 'embed_in'])
         weight_to_save = get_mm_adapter_state_maybe_zero(trainer.model.named_parameters(), keys_to_match)
-        # if getattr(trainer.args, "use_im_start_end", False):
-        #     keys_to_match.extend(['embed_tokens', 'embed_in'])
 
+        current_folder = output_dir.split('/')[-1]
+        parent_folder  = os.path.dirname(output_dir)
         if trainer.args.local_rank == 0 or trainer.args.local_rank == -1:
-            os.makedirs(output_dir, exist_ok=True)
-            torch.save(
-                weight_to_save,
-                os.path.join(output_dir, "mm_projector.bin")
-            )
-            rank0_print(f"Saving multimodal projector weights to {os.path.join(output_dir, 'mm_projector.bin')}")
-        
+            if current_folder.startswith('checkpoint-'):
+                mm_projector_model = os.path.join(parent_folder, "mm_projector")
+                os.makedirs(mm_projector_model, exist_ok = True)
+                torch.save(
+                    weight_to_save,
+                    os.path.join(mm_projector_model, f'{current_folder}.bin')
+                )
+                rank0_print(f"Saving multimodal projector weights to {os.path.join(mm_projector_model, f'{current_folder}.bin')}")
+            else:
+                torch.save(
+                    weight_to_save,
+                    os.path.join(output_dir, f'mm_projector.bin')
+                )
         return
     
     #STAGE 2 - Finetuning model: both DeepSpeed and non-Deepspeed)
@@ -309,6 +321,43 @@ def preprocess_multimodal(
             sentence['value'] = sentence['value'].replace(DEFAULT_IMAGE_TOKEN, replace_token)
 
     return sources
+
+def preprocess_pretrain(
+    sources: Sequence[str],
+    tokenizer: transformers.PreTrainedTokenizer,
+) -> Dict:
+    conservations = []
+    #Create conservation only has: <Image> + Caption
+    for source in sources:
+        assert len(source) == 2 #Pretrain only has 2 messages: user -> assistant
+        assert DEFAULT_IMAGE_TOKEN in source[0]['value'], "Pretrain conversation must start with image token."
+
+        #Ignore the user message (question/prompt)
+        source[0]['value'] = DEFAULT_IMAGE_TOKEN
+        conservation = source[0]['value'] + source[1]['value'] + conv_lb.default_conversation.separator_01
+        conservations.append(conservation)
+
+    input_ids = [tokenizer_image_token(
+        prompt    = prompt,
+        tokenizer = tokenizer,
+        return_tensors = 'pt'
+    ) for prompt in conservations]
+    targets = copy.deepcopy(input_ids)
+
+    for target, source in zip(targets, sources):
+        #Get the length of the image token
+        image_index_token_length = len(tokenizer_image_token(
+            prompt    = source[0]['value'],
+            tokenizer = tokenizer,
+            return_tensors = 'pt'
+        ))
+        #Mask the image token in the target
+        target[:image_index_token_length] = IGNORE_INDEX
+    
+    return dict(
+        input_ids = input_ids,
+        labels    = targets,
+    )
 
 def preprocess_zephyr(
     sources  : Sequence[str],
@@ -438,11 +487,16 @@ def preprocess(
     """
     Main Preprocessing function that handles both text and multimodal data.
     """
-    if conv_lb.templates["default"].separator_style == conv_lb.SeparatorStyle.ZEPHYR:
+    if conv_lb.default_conversation.separator_style == conv_lb.SeparatorStyle.ZEPHYR:
         return preprocess_zephyr(
             sources   = sources,
             tokenizer = tokenizer,
             has_image = has_image
+        )
+    elif conv_lb.default_conversation.separator_style == conv_lb.SeparatorStyle.PLAIN:
+        return preprocess_pretrain(
+            sources   = sources,
+            tokenizer = tokenizer
         )
     
     raise ValueError(f"Unsupported conversation version: {conv_lb.default_conversation.version}. Supported: zephyr_v1.")
@@ -670,9 +724,9 @@ def train(
 ):
     global local_rank
     parser = transformers.HfArgumentParser((ModelArguments, DataArguments, TrainingArguments))
-
-    set_seed(0)
     
+    set_seed(0)
+
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
     local_rank = training_args.local_rank
 
@@ -687,7 +741,7 @@ def train(
     if model_args.mm_grid_pinpoints is not None:
         rank0_print(f"Using mm_grid_pinpoints: {model_args.mm_grid_pinpoints}")
 
-    # --- 1 --- Set up: Model Loading and Configuration
+    # --- 1 --- Set up: Model Loading and Configuration ------------------------------------------------------------------------------
     #Datatype
     compute_dtype = (
         torch.float16 if training_args.fp16 else (torch.bfloat16 if training_args.bf16 else torch.float32)
@@ -709,8 +763,9 @@ def train(
     
     ###HOOK: Quantization training
     
-    # --- 2 --- LoRA Setup
+    # --- 2 --- LoRA Setup (if enabled) ----------------------------------------------------------------------------------------------
     if training_args.lora_enable:
+        from peft import LoraConfig, get_peft_model
         rank0_print("Enabling LoRA for the model.")
         lora_config = LoraConfig(
             r              = training_args.lora_r,
@@ -723,7 +778,7 @@ def train(
         model = get_peft_model(model, lora_config)
         model.print_trainable_parameters()
 
-    # --- 3 --- Set up tokenizer
+    # --- 3 --- Set up tokenizer -----------------------------------------------------------------------------------------------------
     tokenizer = transformers.AutoTokenizer.from_pretrained(
         model_args.model_name_or_path,
         cache_dir        = training_args.cache_dir,
@@ -736,7 +791,7 @@ def train(
     
     conv_lb.default_conversation = conv_lb.templates[model_args.version]
 
-    # --- 4 --- Initialize Vision modules
+    # --- 4 --- Initialize Vision modules --------------------------------------------------------------------------------------------
     model.get_model().initialize_vision_modules(
         model_args = model_args,
     )
@@ -748,43 +803,36 @@ def train(
     data_args.image_processor = vision_tower.image_processor
     data_args.is_multimodal = True
 
-    # --- 5 --- Configs Multimodal Project Training
+    # --- 5 --- Configs Multimodal Project Training ----------------------------------------------------------------------------------
     model.config.tune_mm_mlp_adapter = training_args.tune_mm_mlp_adapter = model_args.tune_mm_mlp_adapter
-    #Training Projector - freeze backbone
+    # > Pretrain: Stage 1
     if model_args.tune_mm_mlp_adapter:
-        rank0_print("Stage 1: Pre-training multimodal projector.")
+        rank0_print("===== Stage 1: Pre-training Gating Fusion and Multimodal projector =====")
         model.requires_grad_(False)
-        for p in model.get_model().mm_projector.parameters():
-            p.requires_grad = True
-    
+
+        #MLP
+        if hasattr(model.get_model(), "mm_projector"):
+            for p in model.get_model().mm_projector.parameters():
+                p.requires_grad = True
+                rank0_print(f"Enabling training in mm_projector.")
+        else:
+            raise ValueError(
+                "model.get_model().mm_projector is not available."
+            )
+    # > Finetune: Stage 2
     #Freeze MLP adapter
     model.config.freeze_mm_mlp_adapter = training_args.freeze_mm_mlp_adapter
     if training_args.freeze_mm_mlp_adapter:
         for p in model.get_model().mm_projector.parameters():
             p.require_grad = False
 
-    # --- 6 --- LoRA Configuration
-    if training_args.lora_enable:
-        rank0_print("Enabling LoRA for the model.")
-        from peft import LoraConfig, get_peft_model
-        lora_config = LoraConfig(
-            r              = training_args.lora_r,
-            lora_alpha     = training_args.lora_alpha,
-            target_modules = find_all_linear_names(model),
-            lora_dropout   = training_args.lora_dropout,
-            bias           = training_args.lora_bias,
-            task_type      = "CAUSAL_LM",
-        )
-        model = get_peft_model(model, lora_config)
-        model.print_trainable_parameters()
-
-    # --- 7 --- Initialize special visual tokens
+    # --- 6 --- Initialize special visual tokens -------------------------------------------------------------------------------------
     model.initialize_vision_tokenizer(
         model_args = model_args,
         tokenizer  = tokenizer,
     )
 
-    # --- 8 --- Set up Data Module & Trainer
+    # --- 7 --- Set up Data Module & Trainer -----------------------------------------------------------------------------------------
     data_module = make_supervised_data_module(
         tokenizer = tokenizer,
         data_args = data_args
@@ -796,7 +844,19 @@ def train(
         **data_module
     )
 
-    # --- 9 --- TRAINING
+    # --- START BENCHMARK LOGGING ---
+    if local_rank in (0, None):
+        torch.cuda.reset_peak_memory_stats()
+        cpu_mem_before = psutil.virtual_memory().used if psutil else None
+        t0 = time.time()
+        n_samples = len(trainer.train_dataset)
+        n_params_trainable = sum(
+            p.numel() for p in model.parameters() if p.requires_grad
+        )
+        rank0_print(f"[BENCH] Trainable params: {n_params_trainable:,}")
+    # --- END PREPARE LOGGING ---
+
+    # --- 8 --- TRAINING -------------------------------------------------------------------------------------------------------------
     if list(pathlib.Path(training_args.output_dir).glob("checkpoint-*")):
         rank0_print("Resuming training from the last checkpoint.")
         trainer.train(resume_from_checkpoint = True)
@@ -804,12 +864,61 @@ def train(
         rank0_print("Starting training from scratch.")
         trainer.train()
 
+    # --- END BENCHMARK LOGGING ---
+    if local_rank in (0, None):
+        t1 = time.time()
+        total_time = t1 - t0
+        gpu_peak = torch.cuda.max_memory_allocated() / (1024**2)
+        cpu_mem_after = psutil.virtual_memory().used if psutil else None
+        cpu_delta = cpu_mem_after - cpu_mem_before if cpu_mem_before is not None else None
+        throughput = n_samples / total_time
+        rank0_print(f"[BENCH] Total time       : {total_time:.1f}s")
+        rank0_print(f"[BENCH] Throughput       : {throughput:.1f} samples/s")
+        rank0_print(f"[BENCH] GPU peak memory  : {gpu_peak:.1f} MiB")
+        if cpu_delta is not None:
+            rank0_print(f"[BENCH] CPU delta memory : {cpu_delta/1024**2:.1f} MiB")
+    if local_rank in (0, None):
+        csv_line = ",".join(map(str, [
+            model_args.version,
+            n_samples,
+            n_params_trainable,
+            f"{total_time:.1f} s",
+            f"{throughput:.1f} samples/s",
+            f"{gpu_peak:.1f} MiB",
+            f"{cpu_delta/1024**2:.1f}" if cpu_delta else ""
+        ]))
+        with open(os.path.join(training_args.output_dir, "benchmark.csv"), "a") as f:
+            f.write(csv_line + "\n")
+    # --- END LOGGING ---
+
     trainer.save_state()
     model.config.use_cache = True
-    safe_save_model_for_hf_trainer(
-        trainer    = trainer,
-        output_dir = training_args.output_dir
-    )
+
+    # --- 9 --- Save the model -------------------------------------------------------------------------------------------------------
+    if training_args.lora_enable:
+        state_dict = get_peft_state_maybe_zero(
+            model.named_parameters(),
+            training_args.lora_bias
+        )
+        non_lora_state_dict = get_peft_state_non_lora_maybe_zero(
+            model.named_parameters(),
+            require_grad_only = True
+        )
+        if training_args.local_rank == 0 or training_args.local_rank == -1:
+            model.config.save_pretrained(training_args.output_dir)
+            model.save_pretrained(
+                training_args.output_dir,
+                state_dict = state_dict,
+            )
+            torch.save(
+                non_lora_state_dict,
+                os.path.join(training_args.output_dir, "non_lora_trainables.bin")
+            )
+    else:
+        safe_save_model_for_hf_trainer(
+            trainer    = trainer,
+            output_dir = training_args.output_dir
+        )
 
 if __name__ == "__main__":
     train()
