@@ -234,7 +234,7 @@ class VisZephyrTrainer(Trainer):
             decay_parameters = [name for name in decay_parameters if "bias" not in name]
 
             if self.args.mm_projector_lr is not None:
-                projector_parameters = [param for param, _ in opt_model.named_parameters() if 'mm_projector' in param or 'gating_fusion' in param]
+                projector_parameters = [param for param, _ in opt_model.named_parameters() if 'mm_projector' in param] # or 'gating_fusion' in param]
 
                 optimizer_grouped_parameters = [
                     {
@@ -316,7 +316,7 @@ class VisZephyrTrainer(Trainer):
             output_dir     = os.path.join(run_dir, checkpoint_dir)
 
             #Only save the mm_projector state (Adapter)
-            keys_to_match  = ['mm_projector', 'vision_resampler', 'vision_tower.gating_fusion']
+            keys_to_match  = ['mm_projector', 'vision_resampler'] #, 'vision_tower.gating_fusion']
             if getattr(self.args, 'mm_use_im_start_end', False):
                 keys_to_match.extend(['embed_tokens', 'embed_in'])
 

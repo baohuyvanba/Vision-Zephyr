@@ -72,8 +72,8 @@ class CLIPVisionTower(nn.Module):
         self.is_loaded = True
 
         #Unfreeze the gating fusion parameters
-        if self.gating_fusion is not None:
-            self.gating_fusion.requires_grad_(True)
+        # if self.gating_fusion is not None:
+        #     self.gating_fusion.requires_grad_(True)
 
     def feature_select(self, image_forward_output):
         """Select features from the vision tower output."""

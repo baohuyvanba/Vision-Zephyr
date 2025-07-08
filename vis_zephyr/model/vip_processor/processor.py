@@ -9,5 +9,11 @@ def visual_prompt_process(
     image_size_anchor,
     data_args,
 ):
+    #Visual Prompt Type
+    dataset_type, sub_type = source['id'].split('-')[0],  source['id'].split('-')[1]
+
+    
+
+
     conversation = source['conversation']
     return image, conversation

@@ -820,14 +820,14 @@ def train(
             )
         
         #Gating
-        if hasattr(model.get_model(), "vision_tower") and hasattr(model.get_model().vision_tower, "gating_fusion"):
-            for p in model.get_model().vision_tower.gating_fusion.parameters():
-                p.requires_grad = True
-                rank0_print(f"Enabling training in vision_tower.gating_fusion.")
-        else:
-            raise ValueError(
-                "model.get_model().vision_tower.gating_fusion is not available."
-            )
+        # if hasattr(model.get_model(), "vision_tower") and hasattr(model.get_model().vision_tower, "gating_fusion"):
+        #     for p in model.get_model().vision_tower.gating_fusion.parameters():
+        #         p.requires_grad = True
+        #         rank0_print(f"Enabling training in vision_tower.gating_fusion.")
+        # else:
+        #     raise ValueError(
+        #         "model.get_model().vision_tower.gating_fusion is not available."
+        #     )
     
     # > Fine-tune: Stage 2
     #Freeze MLP adapter
