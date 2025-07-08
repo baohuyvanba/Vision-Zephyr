@@ -1,4 +1,5 @@
 #!/bin/bash
+
 # =======================================================================================
 #
 #       SCRIPT FOR STAGE 1 PRETRAINING (Vision-Zephyr)
@@ -10,7 +11,7 @@
 #   - Multimodal Projector (MLP) -> Train
 # =======================================================================================
 # deepspeed --include localhost:0,1,2,3 vis_zephyr/train/train_mem.py \
-WANDB_MODE=disabled deepspeed vis_zephyr/train/train_mem.py \
+WANDB_MODE=disabled  deepspeed vis_zephyr/train/train_mem.py \
     --deepspeed ./script/zero2.json \
     --tune_mm_mlp_adapter True \
     --mm_projector_lr 2e-3 \
@@ -28,7 +29,7 @@ WANDB_MODE=disabled deepspeed vis_zephyr/train/train_mem.py \
     --image_aspect_ratio anyres \
     --bf16 True \
     --output_dir ./checkpoints/vis-zephyr-7b-v1-pretrain \
-    --num_train_epochs 1 \
+    --num_train_epochs 2 \
     --per_device_train_batch_size 8 \
     --per_device_eval_batch_size 4 \
     --gradient_accumulation_steps 1 \

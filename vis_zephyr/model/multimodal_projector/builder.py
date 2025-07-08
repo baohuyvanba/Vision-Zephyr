@@ -38,6 +38,7 @@ class QFormer(nn.Module):
         super().__init__()
         self.num_queries = 16
         self.hidden_size = config.hidden_size
+        
 
         self.learned_queries = nn.Parameter(torch.randn(self.num_queries, self.hidden_size))
         self.blocks = nn.ModuleList([
@@ -46,12 +47,16 @@ class QFormer(nn.Module):
                 nhead= 8, #num_heads
                 ffn_dim= 4096
             )
-            for _ in range(4)
+            for _ in range(5)
         ])
+
+        self.pre_norm = nn.LayerNorm(5120)
         self.norm = nn.LayerNorm(self.hidden_size)
 
     def forward(self, features, text_embeddings=None):
         B = features.size(0)
+        features = self.pre_norm(features) 
+
         queries = self.learned_queries.unsqueeze(0).expand(B, -1, -1)
 
         # print(f"[INFO] Batch size (B): {B}")
