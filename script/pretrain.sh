@@ -14,11 +14,13 @@
 WANDB_MODE=disabled  deepspeed vis_zephyr/train/train_mem.py \
     --deepspeed ./script/zero2.json \
     --tune_mm_mlp_adapter True \
-    --mm_projector_lr 2e-4 \
+    --mm_projector_lr 2e-3 \
     --model_name_or_path "HuggingFaceH4/zephyr-7b-beta" \
     --version plain \
     --data_path ./playground/data/pretrain/train_gating_subset_10k.json \
     --image_folder ./playground/data/pretrain/images/train_images_10k/ \
+    --data_path ./playground/train_gating_subset_10k.json \
+    --image_folder ./playground/images/train_images_10k/ \
     --mm_vision_tower "openai/clip-vit-large-patch14-336" \
     --mm_projector_type mlp2x_gelu \
     --mm_vision_select_layer="-2,-5,-8,-11,6" \

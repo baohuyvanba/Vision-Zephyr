@@ -47,10 +47,10 @@ class QFormer(nn.Module):
                 nhead= 8, #num_heads
                 ffn_dim= 4096
             )
-            for _ in range(6)
+            for _ in range(5)
         ])
 
-        self.pre_norm = nn.LayerNorm(self.mm_hidden_size)
+        self.pre_norm = nn.LayerNorm(5120)
         self.norm = nn.LayerNorm(self.hidden_size)
 
     def forward(self, features, text_embeddings=None):
@@ -59,9 +59,9 @@ class QFormer(nn.Module):
 
         queries = self.learned_queries.unsqueeze(0).expand(B, -1, -1)
 
-        print(f"[INFO] Batch size (B): {B}")
-        print(f"[INFO] features.shape: {features.shape}")
-        print(f"[INFO] queries.shape before adding text_embeddings: {queries.shape}")
+        # print(f"[INFO] Batch size (B): {B}")
+        # print(f"[INFO] features.shape: {features.shape}")
+        # print(f"[INFO] queries.shape before adding text_embeddings: {queries.shape}")
         
         if text_embeddings is not None:
             if isinstance(text_embeddings, list):
