@@ -36,7 +36,7 @@ class QFormerBlock(nn.Module):
 class QFormer(nn.Module):
     def __init__(self, config):
         super().__init__()
-        self.num_queries = 576
+        self.num_queries = 32
         self.hidden_size = config.hidden_size
 
         self.learned_queries = nn.Parameter(torch.randn(self.num_queries, self.hidden_size))
