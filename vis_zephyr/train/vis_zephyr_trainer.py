@@ -334,6 +334,7 @@ class VisZephyrTrainer(Trainer):
             #Create the output directory
             if self.args.local_rank <= 0:
                 # self.model.config.save_pretrained(output_dir)
+                os.makedirs(output_dir, exist_ok = True)
                 torch.save(weigth_to_save, os.path.join(output_dir, 'mm_projector.bin'))
                 logger.info(f"Saved mm_projector state to {output_dir}/mm_projector.bin")
         
