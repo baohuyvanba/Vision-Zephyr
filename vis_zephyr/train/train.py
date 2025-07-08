@@ -811,7 +811,7 @@ def train(
     model.config.tune_mm_mlp_adapter = training_args.tune_mm_mlp_adapter = model_args.tune_mm_mlp_adapter
     # > Pretrain: Stage 1
     if model_args.tune_mm_mlp_adapter:
-        rank0_print("===== Stage 1: Pre-training Gating Fusion and Multimodal projector =====")
+        rank0_print("===== Stage 1: Pre-training Projector =====")
         model.requires_grad_(False)
 
         #MLP
@@ -822,16 +822,6 @@ def train(
         else:
             raise ValueError(
                 "model.get_model().mm_projector is not available."
-            )
-        
-        #Gating
-        if hasattr(model.get_model(), "vision_tower") and hasattr(model.get_model().vision_tower, "gating_fusion"):
-            for p in model.get_model().vision_tower.gating_fusion.parameters():
-                p.requires_grad = True
-                rank0_print(f"Enabling training in vision_tower.gating_fusion.")
-        else:
-            raise ValueError(
-                "model.get_model().vision_tower.gating_fusion is not available."
             )
     
     # > Fine-tune: Stage 2
