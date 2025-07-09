@@ -46,34 +46,14 @@ class CLIPVisionTower(nn.Module):
         #Load Image Processor and Vision Tower
         self.image_processor = CLIPImageProcessor.from_pretrained(self.vision_tower_path)
         self.vision_tower    = CLIPVisionModel.from_pretrained(self.vision_tower_path)
-        # self.gating_fusion   = MeanGatedFeaturesFusion(
-        #     num_layers = len(self.select_layers),
-        #     input_dim  = self.vision_tower.config.hidden_size,
-        #     hidden_dim = self.vision_tower.config.hidden_size // 2
-        # )
-        # self.gating_fusion   = GatedFeaturesFusion(
-        #     num_layers = len(self.select_layers),
-        #     input_dim  = self.vision_tower.config.hidden_size,
-        # )
-        # self.gating_fusion = MultiLayerFeatureFusion(
-        #     num_layers  = len(self.select_layers),
-        #     channel_dim = self.vision_tower.config.hidden_size,
-        # )
-        # self.gating_fusion = MultiLayerFeatureFusionMLP(
-        #     num_layers  = len(self.select_layers),
-        #     channel_dim = self.vision_tower.config.hidden_size,
-        # )
+
         self.gating_fusion = DenseChannelIntegrationFusion(
-            num_groups = 4
+            num_groups = 2
         )
 
         #Freeze the vision tower parameters
         self.vision_tower.requires_grad_(False)
         self.is_loaded = True
-
-        #Unfreeze the gating fusion parameters
-        # if self.gating_fusion is not None:
-        #     self.gating_fusion.requires_grad_(True)
 
     def feature_select(self, image_forward_output):
         """Select features from the vision tower output."""
@@ -81,7 +61,7 @@ class CLIPVisionTower(nn.Module):
         
         #Get Selected features
         # 5 layers: selected_features = [image_forward_output['hidden_states'][indice] for indice in self.select_layers]
-        selected_features = hidden_states[-(4*5+1):]
+        selected_features = hidden_states[-(2*11+1):]
         
         if self.select_feature == 'patch': #Default
             #Process Patch features: remove the first feature (CLS token, represent for the whole image)
@@ -91,11 +71,8 @@ class CLIPVisionTower(nn.Module):
             patch_features    = selected_features
         else:
             raise ValueError(f"Unknown feature selection strategy: {self.select_feature}")
-        
-        # OLD - Concatenate:
-        # concatenated_features = torch.cat(patch_features, dim = -1)
 
-        # NEW - Use Gating Fusion
+        #Gating Fusion
         fused_features = self.gating_fusion(patch_features)
 
         return fused_features
@@ -166,7 +143,7 @@ class CLIPVisionTower(nn.Module):
     @property
     def hidden_size(self):
         """Return the hidden size of the vision tower."""
-        return self.vision_tower.config.hidden_size * 5 #len(self.select_layers)
+        return self.vision_tower.config.hidden_size * 3 #len(self.select_layers)
     
     @property
     def num_patches(self):
