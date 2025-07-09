@@ -48,7 +48,7 @@ class CLIPVisionTower(nn.Module):
         self.vision_tower    = CLIPVisionModel.from_pretrained(self.vision_tower_path)
 
         self.gating_fusion = DenseChannelIntegrationFusion(
-            num_groups = 4
+            num_groups = 2
         )
 
         #Freeze the vision tower parameters
@@ -61,7 +61,7 @@ class CLIPVisionTower(nn.Module):
         
         #Get Selected features
         # 5 layers: selected_features = [image_forward_output['hidden_states'][indice] for indice in self.select_layers]
-        selected_features = hidden_states[-(4*5+1):]
+        selected_features = hidden_states[-(2*11+1):]
         
         if self.select_feature == 'patch': #Default
             #Process Patch features: remove the first feature (CLS token, represent for the whole image)
@@ -143,7 +143,7 @@ class CLIPVisionTower(nn.Module):
     @property
     def hidden_size(self):
         """Return the hidden size of the vision tower."""
-        return self.vision_tower.config.hidden_size * 5 #len(self.select_layers)
+        return self.vision_tower.config.hidden_size * 3 #len(self.select_layers)
     
     @property
     def num_patches(self):
