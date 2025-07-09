@@ -98,8 +98,8 @@ def image_blending(
             line_width    = line_width
         )
     elif shape == "point":
-        radius = max( int(8 * max_image_size/image_size_anchor), 1) if visual_prompt_style == 'constant' else  max(random.randint(int(5 * max_image_size/image_size_anchor),  int(20 *max_image_size/image_size_anchor)), 1)
-        aspect_ratio = 1 if random.random()<0.5 or  visual_prompt_style == 'constant' else random.uniform(0.5, 2.0)
+        radius = max( int(8 * max_image_size/image_size_anchor), 1) if vip_style == 'constant' else  max(random.randint(int(5 * max_image_size/image_size_anchor),  int(20 *max_image_size/image_size_anchor)), 1)
+        aspect_ratio = 1 if random.random() < 0.5 or  vip_style == 'constant' else random.uniform(0.5, 2.0)
         draw_point(
             to_draw       = vip_canvas,
             bbox_coor     = bbox_coor,
@@ -126,7 +126,7 @@ def image_blending(
         draw_mask_contour(
             to_draw       = vip_canvas,
             bbox_coor     = bbox_coor,
-            mask_polygon  = mask_polygon,
+            segmentation_coor = mask_polygon,
             outline_color = color_alpha,
             line_width    = line_width,
         )
@@ -136,7 +136,7 @@ def image_blending(
         draw_mask(
             to_draw       = vip_canvas,
             bbox_coor     = bbox_coor,
-            mask_polygon  = mask_polygon,
+            segmentation_coor = mask_polygon,
             fill_color    = color_alpha,
             line_width    = line_width
         )

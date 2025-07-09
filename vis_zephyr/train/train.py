@@ -546,7 +546,7 @@ class LazySupervisedDataset(Dataset):
                     image, conversations = visual_prompt_process(
                         source            = sources[0],
                         image             = image,
-                        image_size_anchor = processor.size['height'],
+                        image_size_anchor = processor.crop_size['height'],
                         data_args         = self.data_args,
                     )
                 except:

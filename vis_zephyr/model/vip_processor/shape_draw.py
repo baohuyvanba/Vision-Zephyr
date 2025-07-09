@@ -235,7 +235,7 @@ def get_random_point_within_polygon(mask_polygon):
             point = Point(x, y)
             if mask_polygon.contains(point):
                 return x, y
-            trail_num += 1
+            trial_num += 1
         else:
             x = np.random.uniform(min_x, max_x)
             y = np.random.uniform(min_y, max_y)

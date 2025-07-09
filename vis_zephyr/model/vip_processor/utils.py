@@ -156,7 +156,7 @@ def get_question(question, all_choices, use_multiplechoice_q, why_question = Fal
         question_prompt = random.choice(WHY_QUESTIONS)
     else:
         image_str = '' if no_image else '<image>\n'
-        question_prompt = image_str + random.choice(QUESTION_PREFIXES)
+        question_prompt = image_str + random.choice(QUESTION_PREFIXES) + question
     
     if use_multiplechoice_q:
         all_options = ''

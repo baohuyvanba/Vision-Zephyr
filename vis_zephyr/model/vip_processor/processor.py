@@ -29,7 +29,7 @@ def visual_prompt_process(
     #VCR
     if dataset_maintype in {'vcr'}:
         #Metadata
-        source['meta_dir'] = source['meta_dir'].replace('./dataset', data_args.image_dir)
+        source['meta_dir'] = source['meta_dir'].replace('./dataset', data_args.image_folder)
         metadata = json.load(open(source['meta_dir']))
 
         if getattr(data_args, "visual_prompt_style", None) == 'vcr_qa':
@@ -72,7 +72,7 @@ def visual_prompt_process(
         )
     
     #conversation = source['conversation']
-    return image, conversation
+    return image, conversations
 
 # VCR ================================================================================================================================
 def create_question_qa_direct(source, shapes_list, color_list):
@@ -145,7 +145,7 @@ def create_question_qar_direct(source, shapes_list, color_list):
         color_list         = color_list
     )
 
-    class_names = all_corpus['class_names']
+    class_names = source['class_names']
     shape_and_color_vip_image_all = []
 
     #Question: Instance ID -> ViP
