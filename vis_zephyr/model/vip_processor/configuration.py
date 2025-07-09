@@ -43,3 +43,11 @@ words_shape ={
     "mask"          : ["with", "mask"],
     "arrow"         : ["pointed to by", "arrow"],
  }
+
+#Answer Mapping
+answer_map = {
+    0: 'A',
+    1: 'B',
+    2: 'C',
+    3: 'D'
+}
