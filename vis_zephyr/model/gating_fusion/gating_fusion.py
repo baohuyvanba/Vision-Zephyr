@@ -13,12 +13,11 @@ import torch.nn.functional as F
 class DenseChannelIntegrationFusion(nn.Module):
     """
     """
-    def __init__(self, num_groups: int = 4):
+    def __init__(self, num_groups: int = 2):
         super().__init__()
         if num_groups < 0:
             raise ValueError("Number of groups must be a positive integer.")
         self.num_groups = num_groups
-        self.norm = nn.LayerNorm(1024 * (num_groups + 1))
 
     def forward(self, features_list: list) -> torch.Tensor:
         """ """
@@ -47,9 +46,8 @@ class DenseChannelIntegrationFusion(nn.Module):
         
         all_fused_features = fused_features_group + [final_features_layer]  # [B, P, C]*5
         concatenated_features = torch.cat(all_fused_features, dim = -1)     # [B, P, C * 5]
-        
-        normalized_features = self.norm(concatenated_features)
-        return normalized_features
+
+        return concatenated_features
 
 # METHOD 4: Concat -> MLP
 # class MultiLayerFeatureFusionMLP(nn.Module):
