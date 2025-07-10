@@ -124,21 +124,21 @@ def image_blending(
         line_width = max(random.randint( int(1 *max_image_size/image_size_anchor), int(2 * max_image_size/image_size_anchor)), 1)
         line_width = max( int(width *max_image_size/image_size_anchor), 1) if width != None else line_width
         draw_mask_contour(
-            to_draw       = vip_canvas,
-            bbox_coor     = bbox_coor,
-            segmentation_coor = mask_polygon,
-            outline_color = color_alpha,
-            line_width    = line_width,
+            to_draw    = vip_canvas,
+            bbox_coor  = bbox_coor,
+            segmentation_coor = segmentation,
+            color      = color_alpha,
+            width      = line_width,
         )
     elif shape == "mask":
         line_width = random.randint( int(0 *max_image_size/image_size_anchor), int(2 * max_image_size/image_size_anchor))
         line_width = max(int(width *max_image_size/image_size_anchor), 1) if width != None else line_width
         draw_mask(
-            to_draw       = vip_canvas,
-            bbox_coor     = bbox_coor,
-            segmentation_coor = mask_polygon,
-            fill_color    = color_alpha,
-            line_width    = line_width
+            to_draw   = vip_canvas,
+            bbox_coor = bbox_coor,
+            segmentation_coor = segmentation,
+            color     = color_alpha,
+            width     = line_width
         )
     
     image = image.convert("RGBA")
