@@ -6,9 +6,9 @@ import json
 import random
 import numpy as np
 
-from conversation_generator import image_blending
-from configuration import visual_prompt_config, visual_prompt_config_test, color_pool, answer_map
-from utils import get_all_instance, get_all_question_answer, get_color_and_shape, build_prompt_from_multiple_choices, get_question, get_answer
+from .conversation_generator import image_blending
+from .configuration import visual_prompt_config, visual_prompt_config_test, color_pool, answer_map
+from .utils import get_all_instance, get_all_question_answer, get_color_and_shape, build_prompt_from_multiple_choices, get_question, get_answer
 from vis_zephyr import conversation
 
 def visual_prompt_process(

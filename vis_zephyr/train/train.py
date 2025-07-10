@@ -861,7 +861,10 @@ def train(
 
     # --- 8 --- TRAINING -------------------------------------------------------------------------------------------------------------
     #Train from Scratch or Resume from Checkpoint
-    last_checkpoint = get_last_checkpoint(training_args.output_dir)
+    last_checkpoint = None
+    if os.path.isdir(training_args.output_dir):
+        last_checkpoint = get_last_checkpoint(training_args.output_dir)
+    
     if last_checkpoint is not None and os.path.exists(os.path.join(last_checkpoint, "trainer_state.json")):
         rank0_print(f"Found a valid, resumable checkpoint at {last_checkpoint}. Resuming training.")
         
