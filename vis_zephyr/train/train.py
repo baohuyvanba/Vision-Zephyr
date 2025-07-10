@@ -21,6 +21,7 @@ import transformers
 import numpy as np
 from torch.utils.data import Dataset
 from PIL import Image
+from transformers.trainer_utils import get_last_checkpoint
 
 from vis_zephyr.constants import ( DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN, IGNORE_INDEX, DEFAULT_IMAGE_TOKEN)
 from vis_zephyr.model.vip_processor.configuration import visual_prompt_config
@@ -122,10 +123,6 @@ class DataArguments:
         metadata = {"help": "Folder containing images for multimodal training."}
     )
     image_aspect_ratio: str = 'square'
-    # mm_grid_pinpoints: Optional[str] = field(
-    #     default=None,
-    #     metadata={"help": "Grid pinpoints for any-resolution image processing. This is set automatically from ModelArguments."}
-    # )
 
 @dataclass
 class TrainingArguments(transformers.TrainingArguments):
@@ -220,7 +217,7 @@ def get_peft_state_non_lora_maybe_zero(named_parameters, require_grad_only = Tru
     return {k: maybe_zero(v) for k, v in to_return.items()}    
 
 #------------------------------------------------------------------------------------------------------------------------------------
-# UTILS FUNCTIONS for LORA
+# UTILS FUNCTIONS: LoRA and Model saving
 #------------------------------------------------------------------------------------------------------------------------------------
 # Find all linear layer names for LoRA targeting, EXCLUDING vision encoder + projector parts.
 def find_all_linear_names(model):
@@ -261,22 +258,28 @@ def safe_save_model_for_hf_trainer(
             keys_to_match.extend(['embed_tokens', 'embed_in'])
         weight_to_save = get_mm_adapter_state_maybe_zero(trainer.model.named_parameters(), keys_to_match)
 
-        current_folder = output_dir.split('/')[-1]
-        parent_folder  = os.path.dirname(output_dir)
-        if trainer.args.local_rank == 0 or trainer.args.local_rank == -1:
-            if current_folder.startswith('checkpoint-'):
-                mm_projector_model = os.path.join(parent_folder, "mm_projector")
-                os.makedirs(mm_projector_model, exist_ok = True)
-                torch.save(
-                    weight_to_save,
-                    os.path.join(mm_projector_model, f'{current_folder}.bin')
-                )
-                rank0_print(f"Saving multimodal projector weights to {os.path.join(mm_projector_model, f'{current_folder}.bin')}")
-            else:
-                torch.save(
-                    weight_to_save,
-                    os.path.join(output_dir, f'mm_projector.bin')
-                )
+        trainer.model.config.save_pretrained(output_dir)
+        torch.save(
+            weight_to_save,
+            os.path.join(output_dir, 'mm_projector.bin')
+        )
+
+        # current_folder = output_dir.split('/')[-1]
+        # parent_folder  = os.path.dirname(output_dir)
+        # if trainer.args.local_rank == 0 or trainer.args.local_rank == -1:
+        #     if current_folder.startswith('checkpoint-'):
+        #         mm_projector_model = os.path.join(parent_folder, "mm_projector")
+        #         os.makedirs(mm_projector_model, exist_ok = True)
+        #         torch.save(
+        #             weight_to_save,
+        #             os.path.join(mm_projector_model, f'{current_folder}.bin')
+        #         )
+        #         rank0_print(f"Saving multimodal projector weights to {os.path.join(mm_projector_model, f'{current_folder}.bin')}")
+        #     else:
+        #         torch.save(
+        #             weight_to_save,
+        #             os.path.join(output_dir, f'mm_projector.bin')
+        #         )
         return
     
     #STAGE 2 - Finetuning model: both DeepSpeed and non-Deepspeed)
@@ -546,7 +549,7 @@ class LazySupervisedDataset(Dataset):
                     image, conversations = visual_prompt_process(
                         source            = sources[0],
                         image             = image,
-                        image_size_anchor = processor.size['height'],
+                        image_size_anchor = processor.crop_size['height'],
                         data_args         = self.data_args,
                     )
                 except:
@@ -859,12 +862,38 @@ def train(
     # --- END PREPARE LOGGING ---
 
     # --- 8 --- TRAINING -------------------------------------------------------------------------------------------------------------
-    if list(pathlib.Path(training_args.output_dir).glob("checkpoint-*")):
-        rank0_print("Resuming training from the last checkpoint.")
-        trainer.train(resume_from_checkpoint = True)
+    #Train from Scratch or Resume from Checkpoint
+    last_checkpoint = None
+    if os.path.isdir(training_args.output_dir):
+        last_checkpoint = get_last_checkpoint(training_args.output_dir)
+    
+    if last_checkpoint is not None and os.path.exists(os.path.join(last_checkpoint, "trainer_state.json")):
+        rank0_print(f"Found a valid, resumable checkpoint at {last_checkpoint}. Resuming training.")
+        
+        if model_args.tune_mm_mlp_adapter:
+            projector_weights_path = os.path.join(last_checkpoint, "mm_projector.bin")
+            if os.path.exists(projector_weights_path):
+                projector_weights = torch.load(projector_weights_path, map_location="cpu")
+                model.load_state_dict(projector_weights, strict=False)
+                rank0_print(f"  > Manually loaded projector weights from checkpoint.")
+        
+        trainer.train(resume_from_checkpoint = last_checkpoint)
     else:
-        rank0_print("Starting training from scratch.")
+        rank0_print("No valid checkpoint found. Starting training from scratch.")
+        final_projector_path = os.path.join(training_args.output_dir, "mm_projector.bin")
+        if model_args.tune_mm_mlp_adapter and os.path.exists(final_projector_path):
+             rank0_print(f"  > Found final weights from a previous completed run. Loading: {final_projector_path}")
+             projector_weights = torch.load(final_projector_path, map_location="cpu")
+             model.load_state_dict(projector_weights, strict=False)
+
         trainer.train()
+
+    # if list(pathlib.Path(training_args.output_dir).glob("checkpoint-*")): #searching for sub-folder named "checkpoint-*"
+    #     rank0_print("Resuming training from the last checkpoint.")
+    #     trainer.train(resume_from_checkpoint = True)
+    # else:
+    #     rank0_print("Starting training from scratch.")
+    #     trainer.train()
 
     # --- END BENCHMARK LOGGING ---
     if local_rank in (0, None):
@@ -896,7 +925,7 @@ def train(
     trainer.save_state()
     model.config.use_cache = True
 
-    # --- 9 --- Save the model -------------------------------------------------------------------------------------------------------
+    # --- 9 --- Save the FINAL model ------------------------------------------------------------------------------------------------
     if training_args.lora_enable:
         state_dict = get_peft_state_maybe_zero(
             model.named_parameters(),
@@ -917,6 +946,7 @@ def train(
                 os.path.join(training_args.output_dir, "non_lora_trainables.bin")
             )
     else:
+        #Handle saving the model for Pretraining & Finetuning
         safe_save_model_for_hf_trainer(
             trainer    = trainer,
             output_dir = training_args.output_dir

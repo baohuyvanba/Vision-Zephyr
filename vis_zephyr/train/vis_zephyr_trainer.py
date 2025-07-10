@@ -301,14 +301,12 @@ class VisZephyrTrainer(Trainer):
 
             return self.optimizer
     
-    def _save_checkpoint(self, model, trial, metrics = None):
+    def _save_checkpoint(self, model, trial): #, metrics = None):
         """
         Save the model checkpoint.
           - Overridden -> handle multi-stage training checkpoints.
           - In Pretraining Stage: save the mm_projector/gating_mlp state only.
         """
-        #(test) Full model checkpoint saving
-        #super()._save_checkpoint(model, trial)
 
         #Pretraining Stage: only save the mm_projector state
         if getattr(self.args, 'tune_mm_mlp_adapter', False):
@@ -318,26 +316,35 @@ class VisZephyrTrainer(Trainer):
             run_dir        = self._get_output_dir(trial = trial)
             output_dir     = os.path.join(run_dir, checkpoint_dir)
 
-            #Only save the mm_projector state (Adapter)
-            keys_to_match  = ['mm_projector', 'vision_resampler']
-            if getattr(self.args, 'mm_use_im_start_end', False):
-                keys_to_match.extend(['embed_tokens', 'embed_in'])
+            #Save pretraining State for mm_projector to enable continues training
+            if self.args.should_save:
+                #Save trainer state
+                self.state.save_to_json(os.path.join(output_dir, "trainer_state.json"))
+                #Save configuration file
+                self.model.config.save_pretrained(output_dir)
 
-            #Get weights to save
-            weigth_to_save = get_mm_adapter_state_maybe_zero(
-                self.model.named_parameters(),
-                keys_to_match
-            )
-            
-            #Create the output directory
-            if self.args.local_rank <= 0:
-                # self.model.config.save_pretrained(output_dir)
-                os.makedirs(output_dir, exist_ok = True)
+                #Only save the mm_projector state (Adapter)
+                keys_to_match  = ['mm_projector', 'vision_resampler']
+                #Add special token keys
+                if getattr(self.args, 'mm_use_im_start_end', False):
+                    keys_to_match.extend(['embed_tokens', 'embed_in'])
+
+                #Get weights to save
+                weigth_to_save = get_mm_adapter_state_maybe_zero(
+                    self.model.named_parameters(),
+                    keys_to_match
+                )
+                
+                # if self.args.local_rank <= 0:
+                #     self.model.config.save_pretrained(output_dir)
+                #     #os.makedirs(output_dir, exist_ok = True)
+
+                #Saving the mm_projector state
                 torch.save(weigth_to_save, os.path.join(output_dir, 'mm_projector.bin'))
                 logger.info(f"Saved mm_projector state to {output_dir}/mm_projector.bin")
         
-        else:   
-            #Default checkpoint saving
+        #Default checkpoint saving
+        else:
             super()._save_checkpoint(model, trial)
 
     def _save(
@@ -349,6 +356,7 @@ class VisZephyrTrainer(Trainer):
         Handle the final model saving - at the end of training.
         """
         if getattr(self.args, 'tune_mm_mlp_adapter', False):
+            #Handled by safe_save function
             pass
         else:
             super()._save(output_dir = output_dir, state_dict = state_dict)
