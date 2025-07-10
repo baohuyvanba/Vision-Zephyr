@@ -13,7 +13,7 @@ import torch.nn.functional as F
 class DenseChannelIntegrationFusion(nn.Module):
     """
     """
-    def __init__(self, num_groups: int = 2):
+    def __init__(self, num_groups: int = 4):
         super().__init__()
         if num_groups < 0:
             raise ValueError("Number of groups must be a positive integer.")
