@@ -8,6 +8,8 @@
 import time
 import psutil
 
+import traceback
+
 import os
 import copy
 from dataclasses import dataclass, field
@@ -552,9 +554,18 @@ class LazySupervisedDataset(Dataset):
                         image_size_anchor = processor.crop_size['height'],
                         data_args         = self.data_args,
                     )
-                except:
-                    print(f"=== Error processing ViP ===")
-                    return self.__getitem__(random.randint(0, len(self.list_data_dict)-1))
+                except Exception as e:
+                    # In ra thông báo lỗi chi tiết
+                    print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+                    print(f"=== Error processing ViP for item index: {i} ===")
+                    print(f"=== Source data: {self.list_data_dict[i]} ===")
+                    print(f"=== Exception: {e} ===")
+                    traceback.print_exc()
+                    print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+                    raise e
+                # except:
+                #     print(f"=== Error processing ViP ===")
+                #     return self.__getitem__(random.randint(0, len(self.list_data_dict)-1))
                 sources[0]["conversations"] = conversations
             
             #Apply padding to make image square

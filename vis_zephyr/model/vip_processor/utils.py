@@ -126,7 +126,7 @@ def get_all_question_answer(all_corpus, shape_and_color, class_names, answer_typ
                     text += ' ' + word_1 + ' '
                     #Word 2: shape - circle, square, ...
                     if random.random() < 0.5:
-                        text += 'the'
+                        text += 'the '
                     if shape_color[0] is not None:
                         text += shape_color[0] + ' '
                     text += word_2
@@ -186,15 +186,15 @@ def get_answer(choice, content, use_multiplechoice_r):
             f'{get_adjective()} answer is ({choice_upper})',
             f'({choice_upper}){get_punctuation()} {content}',
             f'({choice_upper}){get_punctuation()} {content}',
-            f'{get_adjective()} answer is ({choice_upper}) — {content}',
-            f'{get_adjective()} answer is ({choice_upper}) — {content}',
-            f'({choice_upper}) — {get_adjective()} because {content}',
-            f'({choice_upper}) — {get_adjective()} because {content}',
+            f'{get_adjective()} answer is ({choice_upper}) - {content}',
+            f'{get_adjective()} answer is ({choice_upper}) - {content}',
+            f'({choice_upper}) - {get_adjective()} because {content}',
+            f'({choice_upper}) - {get_adjective()} because {content}',
             f'Answer ({choice_upper}): {content}',
             f'Answer ({choice_upper}): {content}',
             f'Opt for ({choice_upper}) if {content}',
             f'Opt for ({choice_upper}) if {content}'
         ])
-        return content.replace("\u2024", "-")
+        return content.replace("\u2014", "-")
     else:
         return content
