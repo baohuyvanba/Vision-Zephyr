@@ -219,7 +219,7 @@ class VisZephyrTrainer(Trainer):
             )
         else:
             #Default trainer sampler
-            return super().__get_trainer_sampler(train_dataset = train_dataset)
+            return super()._get_train_sampler()
         
     def create_optimizer(self):
         """

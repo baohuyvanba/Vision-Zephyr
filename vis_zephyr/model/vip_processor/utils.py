@@ -52,7 +52,7 @@ def get_color_and_shape(all_instance_index, shapes_list, color_list):
     Get a unique pair of Color and Shape for each Instance
     """
     #Random shape
-    shapes = random.choice(shapes_list, k = len(all_instance_index))
+    shapes = random.choices(shapes_list, k = len(all_instance_index))
     shape_counts      = collections.Counter(shapes)
     non_unique_shapes = {shape for shape, count in shape_counts.items() if count > 1}
 

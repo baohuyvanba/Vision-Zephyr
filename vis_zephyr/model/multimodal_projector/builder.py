@@ -10,8 +10,8 @@ class QFormerBlock(nn.Module):
         self.cross_attn = nn.MultiheadAttention(
             num_heads=nhead,
             embed_dim=4096,
-            kdim=3072,
-            vdim=3072,
+            kdim=5120,
+            vdim=5120,
             batch_first=True
         )
         self.norm1 = nn.LayerNorm(hidden_size)

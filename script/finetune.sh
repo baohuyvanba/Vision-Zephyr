@@ -17,8 +17,8 @@ deepspeed vis_zephyr/train/train_mem.py \
     --lora_enable True --lora_r 128 --lora_alpha 256 --lora_dropout 0.05 --lora_bias "none" \
     --model_name_or_path "HuggingFaceH4/zephyr-7b-beta" \
     --version "zephyr_v1" \
-    --data_path ./playground/data/pretrain/train_gating_subset_10k.json \
-    --image_folder ./playground/data/pretrain/images/train_images_10k/ \
+    --data_path ./playground/data/finetune/test.json \
+    --image_folder ./playground/data/finetune/images/ \
     --mm_vision_tower "openai/clip-vit-large-patch14-336" \
     --pretrain_mm_mlp_adapter ./checkpoints/vis-zephyr-7b-v1-pretrain/mm_projector.bin \
     --mm_projector_type "mlp2x_gelu" \
