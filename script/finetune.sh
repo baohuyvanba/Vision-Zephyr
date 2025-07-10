@@ -26,7 +26,7 @@ deepspeed vis_zephyr/train/train_mem.py \
     --image_aspect_ratio "pad" \
     --mm_use_im_start_end False \
     --mm_use_im_patch_token True \
-    --group_by_modality_length True \
+    --group_by_modality_length False \
     --bf16 True \
     --output_dir ./checkpoints/vis-zephyr-7b-v1-finetune-lora \
     --num_train_epochs 1 \
