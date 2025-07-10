@@ -122,10 +122,6 @@ class DataArguments:
         metadata = {"help": "Folder containing images for multimodal training."}
     )
     image_aspect_ratio: str = 'square'
-    # mm_grid_pinpoints: Optional[str] = field(
-    #     default=None,
-    #     metadata={"help": "Grid pinpoints for any-resolution image processing. This is set automatically from ModelArguments."}
-    # )
 
 @dataclass
 class TrainingArguments(transformers.TrainingArguments):
@@ -220,7 +216,7 @@ def get_peft_state_non_lora_maybe_zero(named_parameters, require_grad_only = Tru
     return {k: maybe_zero(v) for k, v in to_return.items()}    
 
 #------------------------------------------------------------------------------------------------------------------------------------
-# UTILS FUNCTIONS
+# UTILS FUNCTIONS: LoRA and Model saving
 #------------------------------------------------------------------------------------------------------------------------------------
 # Find all linear layer names for LoRA targeting, EXCLUDING vision encoder + projector parts.
 def find_all_linear_names(model):
@@ -857,6 +853,24 @@ def train(
     # --- END PREPARE LOGGING ---
 
     # --- 8 --- TRAINING -------------------------------------------------------------------------------------------------------------
+    #Pretrain checkpoints loading pre-logic
+    possible_checkpoints = list(pathlib.Path(training_args.output_dir).glob("checkpoint-*"))
+    if len(possible_checkpoints) > 0:
+        if model_args.tune_mm_mlp_adapter:
+            from transformers.trainer_utils import get_last_checkpoint
+            last_checkpoint = get_last_checkpoint(training_args.output_dir)
+            if last_checkpoint is not None and training_args.local_rank <= 0:
+                rank0_print(f"Manually loading trainable weights from pretrain checkpoint: {last_checkpoint}")
+                projector_weights_path = os.path.join(last_checkpoint, "mm_projector.bin")
+                
+                if os.path.exists(projector_weights_path):
+                    projector_weights = torch.load(projector_weights_path, map_location = "cpu")
+                    missing_keys, unexpected_keys = model.load_state_dict(projector_weights, strict=False)
+                    rank0_print(f"  > Loaded weights. Missing keys: {len(missing_keys)}, Unexpected keys: {len(unexpected_keys)}")
+                else:
+                    rank0_print(f"  > WARNING: mm_projector.bin not found in checkpoint. Resuming with initial projector weights.")
+    
+    #Train from Scratch or Resume from Checkpoint
     if list(pathlib.Path(training_args.output_dir).glob("checkpoint-*")):
         rank0_print("Resuming training from the last checkpoint.")
         trainer.train(resume_from_checkpoint = True)

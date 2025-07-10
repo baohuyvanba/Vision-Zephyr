@@ -301,14 +301,12 @@ class VisZephyrTrainer(Trainer):
 
             return self.optimizer
     
-    def _save_checkpoint(self, model, trial, metrics = None):
+    def _save_checkpoint(self, model, trial): #, metrics = None):
         """
         Save the model checkpoint.
           - Overridden -> handle multi-stage training checkpoints.
           - In Pretraining Stage: save the mm_projector state only.
         """
-        #(test) Full model checkpoint saving
-        #super()._save_checkpoint(model, trial)
 
         #Pretraining Stage: only save the mm_projector state
         if getattr(self.args, 'tune_mm_mlp_adapter', False):
@@ -317,6 +315,10 @@ class VisZephyrTrainer(Trainer):
             checkpoint_dir = f"{PREFIX_CHECKPOINT_DIR}-{self.state.global_step}"
             run_dir        = self._get_output_dir(trial = trial)
             output_dir     = os.path.join(run_dir, checkpoint_dir)
+
+            #Save pretraining State for mm_projector to enable continues training
+            if self.args.should_save:
+                self.save_state()
 
             #Only save the mm_projector state (Adapter)
             keys_to_match  = ['mm_projector', 'vision_resampler']
@@ -331,10 +333,10 @@ class VisZephyrTrainer(Trainer):
                 keys_to_match
             )
             
-            #Create the output directory
+            #Saving the mm_projector state
             if self.args.local_rank <= 0:
-                # self.model.config.save_pretrained(output_dir)
-                os.makedirs(output_dir, exist_ok = True)
+                self.model.config.save_pretrained(output_dir)
+                #os.makedirs(output_dir, exist_ok = True)
                 torch.save(weigth_to_save, os.path.join(output_dir, 'mm_projector.bin'))
                 logger.info(f"Saved mm_projector state to {output_dir}/mm_projector.bin")
         
