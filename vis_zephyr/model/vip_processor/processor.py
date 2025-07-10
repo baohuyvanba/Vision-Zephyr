@@ -8,7 +8,7 @@ import numpy as np
 
 from conversation_generator import image_blending
 from configuration import visual_prompt_config, visual_prompt_config_test, color_pool, answer_map
-from utils import get_all_instance, get_all_question_answer, get_color_and_shape, build_prompt, get_question, get_answer
+from utils import get_all_instance, get_all_question_answer, get_color_and_shape, build_prompt_from_multiple_choices, get_question, get_answer
 from vis_zephyr import conversation
 
 def visual_prompt_process(
@@ -112,7 +112,7 @@ def create_question_qa_direct(source, shapes_list, color_list):
     )
     shape_and_color_vip_image_all.extend(shape_and_color_vip_img)
 
-    question_prompt = '<image>\n' + build_prompt(question, answer)
+    question_prompt = '<image>\n' + build_prompt_from_multiple_choices(question, answer)
     question_answer_prompt = answer_map[source['answer_label']]
 
     conversations = [
@@ -177,7 +177,7 @@ def create_question_qar_direct(source, shapes_list, color_list):
     )
     shape_and_color_vip_image_all.extend(shape_and_color_vip_img)
 
-    question_prompt  = build_prompt('', rationale)
+    question_prompt  = build_prompt_from_multiple_choices('', rationale)
     rationale_prompt = answer_map[source['rationale_label']]
     
     conversations = [

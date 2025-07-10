@@ -8,8 +8,8 @@ from networkx import draw
 from shapely.ops import unary_union
 from shapely.geometry import Polygon
 
-from configuration import visual_prompt_config, visual_prompt_config_test, color_pool, words_shape
-from shape_draw import draw_rectangle, draw_ellipse, draw_triangle, draw_point, draw_scribble, draw_mask_contour, draw_mask, draw_arrow
+from .configuration import visual_prompt_config, visual_prompt_config_test, color_pool, words_shape
+from .shape_draw import draw_rectangle, draw_ellipse, draw_triangle, draw_point, draw_scribble, draw_mask_contour, draw_mask, draw_arrow
 
 def image_blending(
         image, shape = "rectangle",

@@ -318,25 +318,28 @@ class VisZephyrTrainer(Trainer):
 
             #Save pretraining State for mm_projector to enable continues training
             if self.args.should_save:
+                #Save trainer state
                 self.save_state()
-
-            #Only save the mm_projector state (Adapter)
-            keys_to_match  = ['mm_projector', 'vision_resampler']
-            
-            #Add special token keys
-            if getattr(self.args, 'mm_use_im_start_end', False):
-                keys_to_match.extend(['embed_tokens', 'embed_in'])
-
-            #Get weights to save
-            weigth_to_save = get_mm_adapter_state_maybe_zero(
-                self.model.named_parameters(),
-                keys_to_match
-            )
-            
-            #Saving the mm_projector state
-            if self.args.local_rank <= 0:
+                #Save configuration file
                 self.model.config.save_pretrained(output_dir)
-                #os.makedirs(output_dir, exist_ok = True)
+
+                #Only save the mm_projector state (Adapter)
+                keys_to_match  = ['mm_projector', 'vision_resampler']
+                #Add special token keys
+                if getattr(self.args, 'mm_use_im_start_end', False):
+                    keys_to_match.extend(['embed_tokens', 'embed_in'])
+
+                #Get weights to save
+                weigth_to_save = get_mm_adapter_state_maybe_zero(
+                    self.model.named_parameters(),
+                    keys_to_match
+                )
+                
+                # if self.args.local_rank <= 0:
+                #     self.model.config.save_pretrained(output_dir)
+                #     #os.makedirs(output_dir, exist_ok = True)
+
+                #Saving the mm_projector state
                 torch.save(weigth_to_save, os.path.join(output_dir, 'mm_projector.bin'))
                 logger.info(f"Saved mm_projector state to {output_dir}/mm_projector.bin")
         
@@ -353,6 +356,7 @@ class VisZephyrTrainer(Trainer):
         Handle the final model saving - at the end of training.
         """
         if getattr(self.args, 'tune_mm_mlp_adapter', False):
+            #Handled by safe_save function
             pass
         else:
             super()._save(output_dir = output_dir, state_dict = state_dict)

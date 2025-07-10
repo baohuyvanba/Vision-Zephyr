@@ -3,7 +3,6 @@
 # Description: Configuration for Visual Prompt - including supported datasets, visual prompt types, and styles.
 # =================================================================================================
 
-
 #VISUAL PROMPT SUPPORTED DATASETS
 visual_prompt_config = dict(
     refcocog  = [ ["rectangle", "ellipse", "triangle", "point", "scribble", "mask contour", "mask", "arrow"], ''],

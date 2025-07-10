@@ -5,7 +5,7 @@
 import random
 import collections
 
-from configuration import words_shape, answer_map, QUESTION_PREFIXES, OPTIONS_PREFIXES, WHY_QUESTIONS
+from .configuration import words_shape, answer_map, QUESTION_PREFIXES, OPTIONS_PREFIXES, WHY_QUESTIONS
 
 # ====================================================================================================================================
 def build_prompt_from_multiple_choices(question, options):
