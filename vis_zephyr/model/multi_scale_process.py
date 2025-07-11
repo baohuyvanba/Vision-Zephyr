@@ -8,6 +8,7 @@ from typing import List, Tuple
 import torch
 from PIL import Image
 
+#Read a string literal and evaluate it to its Python object representation.
 def _robust_literal_eval(value_str):
     """
     Recursively evaluates a string literal until it's no longer a string.
@@ -32,6 +33,10 @@ def select_best_fit_resolution(
     """
     Select the best fit resolution from a list of possible resolutions.
     The best fit is the one that is closest to the original resolution.
+      - Maximizes the effective resolution (area of the downscaled image)
+      - Minimizes the wasted resolution (area of padding)
+    
+    Returns: Tuple[int, int] -> (width, height) of the best fit resolution.
     """
     ori_width, ori_height = original_resolution
     
@@ -69,6 +74,10 @@ def resize_pad_image(
 ) -> Image.Image:
     """
     Resize and Pad image -> target resolution.
+
+    Returns: Image.Image -> Resized and padded image.
+     - The image is resized to fit within the target resolution while maintaining aspect ratio
+     - The resized image is centered on a black background of the target resolution.
     """
     original_w, original_h = image.size
     target_W, target_H     = target_res
@@ -92,6 +101,8 @@ def divide_to_patches(
 ) -> List[Image.Image]:
     """
     Divide an image into patches of specified size.
+    
+    Returns: List[Image.Image] -> List of image patches (non-overlapping).
     """
     patches = []
     w, h    = image.size
@@ -110,7 +121,8 @@ def calculate_grid_shape(
 ) -> Tuple[int, int]:
     """
     Calculate the grid shape based on the image size, grid pinpoint, and patch size.
-    -> Numbers of rows and columns in the grid.
+    
+    Returns: Numbers of rows and columns in the grid.
     """
     possible_res = _robust_literal_eval(grid_pinpoints)
     if not isinstance(possible_res, list):
@@ -128,6 +140,12 @@ def process_any_resolution_image(
 ) -> torch.Tensor:
     """
     Process an image with any resolution.
+     - Get the best fit resolution from the grid pinpoints based on the original image size.
+     - Resize the image with padding to the best fit resolution.
+     - Divide the padded image into patches.
+    
+    Returns: torch.Tensor -> Tensor of preprocessed image patches.
+     -> Tensor [Patches, C, H, W], Patches including: Resized Image + Image Patches
     """
     if isinstance(grid_pinpoints, list):
         possible_resolution = grid_pinpoints
@@ -160,9 +178,9 @@ def process_any_resolution_image(
     preprocessed_patches = [
         processor.preprocess(patch, return_tensors='pt')['pixel_values']
         for patch in patches
-    ]
+    ] #Image patches (list of [C, H, W]) -> processed image patches (list of [1, C, H, W])
 
-    return torch.cat(preprocessed_patches, dim= 0)
+    return torch.cat(preprocessed_patches, dim = 0) #Shape [Num_Patches*1, C, H, W]
 
 #======================================================================================================================================
 # UNPAD IMAGE: remove padding from padded/resized image

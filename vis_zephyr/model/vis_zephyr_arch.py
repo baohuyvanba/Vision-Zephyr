@@ -119,7 +119,7 @@ class VisZephyrMetaForCausalLM(ABC):
     def encode_images(self, images, text_embeddings):
         """Encodes images using the Vision Encoder & Multimodal Projector of the model."""
         image_features     = self.get_model().get_vision_tower()(images)
-        projected_features = self.get_model().mm_projector(image_features, text_embeddings=text_embeddings)
+        projected_features = self.get_model().mm_projector(image_features, text_embeddings = text_embeddings)
         return projected_features
 
     #----------------------------------------------------------------------------------------------------------------------------------

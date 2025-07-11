@@ -18,10 +18,12 @@ from vis_zephyr.model.mm_utils import process_images, tokenizer_image_token, get
 from vis_zephyr.utils import disable_torch_init
 
 #=========================================================================================================================
-# Load Image from path of URL
+# UTILITIES FUNCTION
 #=========================================================================================================================
 def load_image(image_file: str) -> Image.Image:
-    """Load image from a file path or URL."""
+    """
+    Load image from a local file path or URL.
+    """
     #Get image from URL
     if image_file.startswith('http://') or image_file.startswith('https://'):
         response = requests.get(image_file)
@@ -37,7 +39,7 @@ def load_image(image_file: str) -> Image.Image:
 def main(args):
     """Command line interface."""
     # --- 1 --- Initialize the model -------------------------------------------------------------------------------------------------
-    disable_torch_init()
+    disable_torch_init() #for inference mode
     model_name = get_model_name_from_path(args.model_path)
 
     #Load the tokenizer, model, and image processor
@@ -53,6 +55,8 @@ def main(args):
 
     # --- 2 --- Conversation Setup ---------------------------------------------------------------------------------------------------
     conv_mode = "zephyr_v1"
+    
+    #Set the default conversation mode if not specified or if it is not recognized
     if args.conv_mode is not None and args.conv_mode != conv_mode:
         print(f"[WARNING] The auto-inferred conversation mode is {conv_mode}, but --conv-mode is set to {args.conv_mode}. Using {conv_mode}.")
         args.conv_mode = conv_mode
@@ -71,7 +75,7 @@ def main(args):
             image          = image,
             processor      = image_processor,
             grid_pinpoints = model.config.mm_grid_pinpoints,
-        )
+        ) #Image (C, H, W) -> Tensor (Patches, C, H, W)
     else:
         image_tensor = process_images(
             images          = image,
@@ -87,7 +91,7 @@ def main(args):
             img.to(model.device, dtype = torch.float16)
             for img in image_tensor
         ]
-    else:
+    else: #Single image tensor
         image_tensor = image_tensor.unsqueeze(0).to(model.device, dtype = torch.float16)
 
     # --- 4 --- INTERACTIVE CHAT LOOP ------------------------------------------------------------------------------------------------
@@ -152,6 +156,7 @@ def main(args):
             output_ids = model.generate(
                 input_ids      = input_ids,
                 images         = image_tensor,
+                images_size    = [images_size],
                 do_sample      = True if args.temperature > 0 else False,
                 temperature    = args.temperature,
                 max_new_tokens = args.max_new_tokens,

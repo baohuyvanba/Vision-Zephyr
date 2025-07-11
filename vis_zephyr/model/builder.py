@@ -48,7 +48,8 @@ def load_pretrained_model(
         raise ValueError(f"Unsupported model name: {model_name}. Only Zephyr models are supported at the moment.")
 
     #LOAD LLM Backbone + Projector model ============================================================================================
-    #>>> Load LoRA finetuned Model
+    
+    #>>> Load LoRA finetuned Model (FULL MODEL SEPARATED LOADING)
     if 'lora' in model_name.lower() and model_base is not None:
         print("=== Loading Zephyr LLM Backbone with LoRA from base path ===")
         from peft import PeftModel
@@ -93,7 +94,7 @@ def load_pretrained_model(
         print("=== Merging LoRA weights into the model ===")
         model = model.merge_and_unload()
     
-    #>>> Load LoRA finetuned Model but no model_base
+    #>>> Load LoRA finetuned Model but no model_base (WARNING)
     elif 'lora' in model_name.lower() and model_base is None:
         warnings.warn('There is `lora` in model name but no `model_base` is provided. If you are loading a LoRA model, please provide the `model_base` argument.')
     
@@ -118,7 +119,7 @@ def load_pretrained_model(
         mm_projector_weights = {k: v.to(torch.float16) for k, v in mm_projector_weights.items()}
         model.load_state_dict(mm_projector_weights, strict = False)
     
-    #>>> Load fully consolidated model
+    #>>> Load fully consolidated model (FULL MODEL LOADING)
     else:
         tokenizer = AutoTokenizer.from_pretrained(model_path, use_fast=False)
         model     = VisZephyrForCausalLM.from_pretrained(
@@ -140,9 +141,15 @@ def load_pretrained_model(
     mm_use_im_start_end   = getattr(model.config, "mm_use_im_start_end", False)
     mm_use_im_patch_token = getattr(model.config, "mm_use_im_patch_token", True)
     if mm_use_im_patch_token:
-        tokenizer.add_tokens([DEFAULT_IMAGE_PATCH_TOKEN], special_tokens=True)
+        tokenizer.add_tokens(
+            [DEFAULT_IMAGE_PATCH_TOKEN],
+            special_tokens = True
+        )
     if mm_use_im_start_end:
-        tokenizer.add_tokens([DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN], special_tokens=True)
+        tokenizer.add_tokens(
+            [DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN],
+            special_tokens = True
+        )
     model.resize_token_embeddings(len(tokenizer))
     
     #Context Length

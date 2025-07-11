@@ -79,7 +79,7 @@ def process_images(
     pixel_values = image_processor(
         images = transformed_images, 
         return_tensors = 'pt'
-    )['pixel_values']
+    )['pixel_values'] 
     
     if is_single_image:
         return pixel_values[0]
