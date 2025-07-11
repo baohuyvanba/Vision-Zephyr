@@ -219,7 +219,7 @@ class VisZephyrTrainer(Trainer):
             )
         else:
             #Default trainer sampler
-            return super().__get_trainer_sampler(train_dataset = train_dataset)
+            return super()._get_train_sampler()
         
     def create_optimizer(self):
         """
@@ -318,10 +318,10 @@ class VisZephyrTrainer(Trainer):
 
             #Save pretraining State for mm_projector to enable continues training
             if self.args.should_save:
-                #Save trainer state
-                self.state.save_to_json(os.path.join(output_dir, "trainer_state.json"))
                 #Save configuration file
                 self.model.config.save_pretrained(output_dir)
+                #Save trainer state
+                self.state.save_to_json(os.path.join(output_dir, "trainer_state.json"))
 
                 #Only save the mm_projector state (Adapter)
                 keys_to_match  = ['mm_projector', 'vision_resampler']
