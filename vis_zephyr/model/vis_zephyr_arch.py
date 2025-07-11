@@ -183,7 +183,7 @@ class VisZephyrMetaForCausalLM(ABC):
                 if self.device is not None:
                     cur_text_embed = cur_text_embed.to(self.device)
                 #Repeating text embeddings for each patch
-                repeated_text_embed = cur_text_embed.unsqueeze(0).repeat(image_patches.shape[0], -1, -1) #[Num_Patches, Seq_Length, D_model]
+                repeated_text_embed = cur_text_embed.unsqueeze(0).expand(image_patches.shape[0], -1, -1) #[Num_Patches, Seq_Length, D_model]
 
                 text_embeddings.append(repeated_text_embed)
             
