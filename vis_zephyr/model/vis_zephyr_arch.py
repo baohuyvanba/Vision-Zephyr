@@ -3,6 +3,7 @@
 # Description: CORE Architecture file - Defines the meta-architecture for integrating vision and language models.
 # =================================================================================================
 from abc import ABC, abstractmethod
+from pydoc import text
 
 import torch
 import torch.nn as nn
@@ -147,17 +148,17 @@ class VisZephyrMetaForCausalLM(ABC):
         if vision_tower is None or images is None or input_ids.shape[1] == 1:
             return input_ids, position_ids, attention_mask, past_key_values, None, labels
         
-        #Get text embeddings only
-        text_embeddings = []
-        for cur_input_ids in input_ids:
-            text_only_ids = cur_input_ids[cur_input_ids != IMAGE_TOKEN_INDEX]
+        # #Get text embeddings only
+        # text_embeddings = []
+        # for cur_input_ids in input_ids:
+        #     text_only_ids = cur_input_ids[cur_input_ids != IMAGE_TOKEN_INDEX]
             
-            cur_text_embed = self.get_model().embed_tokens(text_only_ids)
+        #     cur_text_embed = self.get_model().embed_tokens(text_only_ids)
             
-            if self.device is not None:
-                cur_text_embed = cur_text_embed.to(self.device)
+        #     if self.device is not None:
+        #         cur_text_embed = cur_text_embed.to(self.device)
             
-            text_embeddings.append(cur_text_embed)
+        #     text_embeddings.append(cur_text_embed)
         
         # --- 1 --- EMBEDDING IMAGE: Image -> Features -> Projected Features ----------------------------------------------------------------------
         if type(images) is list or images.ndim == 5:
@@ -169,7 +170,40 @@ class VisZephyrMetaForCausalLM(ABC):
                 #If images is a list, ensure all images are tensors is (1, C, H, W) or (Num_Patches, C, H_patch, W_patch) in the list
                 images = [x.unsqueeze(0) if x.ndim == 3 else x for x in images]
 
-            #Images list: [B, 1 or Num_Patches, C, H, W]] -> Cat: [B * Num_Patches, C, H, W]
+            #Now the input is (list of tensors[B, C, H, W]) or  (tensor [B, Num_Patches, C, H_patch, W_patch])
+            text_embeddings = []
+            for i, image_patches in enumerate(images):
+                #Iterate over the Image_With_Patches [Num_Patches, C, H, W] or [1, C, H, W]:
+
+                #Get current input ids for the image_with_patches
+                cur_input_ids = input_ids[i]
+                text_only_ids = cur_input_ids[cur_input_ids != IMAGE_TOKEN_INDEX]
+                #Embedding
+                cur_text_embed = self.get_model().embed_tokens(text_only_ids)
+                if self.device is not None:
+                    cur_text_embed = cur_text_embed.to(self.device)
+                #Repeating text embeddings for each patch
+                repeated_text_embed = cur_text_embed.unsqueeze(0).repeat(image_patches.shape[0], -1, -1) #[Num_Patches, Seq_Length, D_model]
+
+                text_embeddings.append(repeated_text_embed)
+            
+            #Padding text embeddings to the maximum length
+            max_text_len = max(t.shape[1] for t in text_embeddings)
+            padded_text_embeddings = []
+            for t in text_embeddings:
+                padding_needed = max_text_len - t.shape[1]
+                if padding_needed > 0:
+                    #Pad with zeros if needed
+                    padding  = torch.zeros((t.shape[0], padding_needed, t.shape[2]), dtype = t.dtype, device = t.device)
+                    padded_t = torch.cat((t, padding), dim=1)
+                else:
+                    padded_t = t
+                padded_text_embeddings.append(padded_t)
+            
+            #Concatenated Text Embeddings: [B * Num_Patches, Seq_Length, D_model]
+            text_embeddings = torch.cat(padded_text_embeddings, dim=0)
+
+            #Concatenated: Images list: B of [1 or Num_Patches, C, H, W]] -> Cat: [B * Num_Patches, C, H, W]
             concat_images  = torch.cat([image for image in images], dim=0)
             
             #IMAGE ENCODING & PROJECTING
@@ -186,7 +220,8 @@ class VisZephyrMetaForCausalLM(ABC):
             )
         else:
             #If images is a single tensor (C, H, W) - only 1 image
-            image_features = self.encode_images(images, text_embeddings)
+            text_embeddings = self.get_model().embed_tokens(input_ids[input_ids != IMAGE_TOKEN_INDEX])
+            image_features  = self.encode_images(images, text_embeddings)
 
         # --- 2 --- COMBINE TEXT + IMAGE EMBEDDINGS ---------------------------------------------------------------------------------------------
         #Dummy Tensors

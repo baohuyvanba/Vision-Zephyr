@@ -58,19 +58,18 @@ class QFormer(nn.Module):
         self.norm     = nn.LayerNorm(self.hidden_size)
 
     def forward(self, features, text_embeddings=None):
-        B        = features.size(0)
-        features = self.pre_norm(features) 
-
-        queries  = self.learned_queries.unsqueeze(0).expand(B, -1, -1)
+        Batch_size = features.size(0)
+        features   = self.pre_norm(features) 
+        queries    = self.learned_queries.unsqueeze(0).expand(Batch_size, -1, -1)
         
         if text_embeddings is not None:
-            if isinstance(text_embeddings, list):
-                text_embeddings = torch.stack(text_embeddings, dim=0)  # [B, L, D]
-                if text_embeddings.shape[0] < B:
-                    repeat_times = (B + text_embeddings.shape[0] - 1) // text_embeddings.shape[0]
-                    text_embeddings = text_embeddings.repeat((repeat_times, 1, 1))[:B]
+            # if isinstance(text_embeddings, list):
+            #     text_embeddings = torch.stack(text_embeddings, dim=0)  # [B, L, D]
+            #     if text_embeddings.shape[0] < B:
+            #         repeat_times = (B + text_embeddings.shape[0] - 1) // text_embeddings.shape[0]
+            #         text_embeddings = text_embeddings.repeat((repeat_times, 1, 1))[:B]
 
-            if queries.shape[1] == 1:  # <== chỉ concat nếu chưa concat
+            if queries.shape[1] == 1:
                 queries = torch.cat([queries, text_embeddings], dim=1)  # [B, Q+L, D]
 
         for blk in self.blocks:
