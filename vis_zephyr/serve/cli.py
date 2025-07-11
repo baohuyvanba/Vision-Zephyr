@@ -36,7 +36,7 @@ def load_image(image_file: str) -> Image.Image:
 #=========================================================================================================================
 def main(args):
     """Command line interface."""
-    # --- 1 --- Initialize the model
+    # --- 1 --- Initialize the model -------------------------------------------------------------------------------------------------
     disable_torch_init()
     model_name = get_model_name_from_path(args.model_path)
 
@@ -51,7 +51,7 @@ def main(args):
         device     = args.device, #"cuda"
     )
 
-    # --- 2 --- Conversation Setup
+    # --- 2 --- Conversation Setup ---------------------------------------------------------------------------------------------------
     conv_mode = "zephyr_v1"
     if args.conv_mode is not None and args.conv_mode != conv_mode:
         print(f"[WARNING] The auto-inferred conversation mode is {conv_mode}, but --conv-mode is set to {args.conv_mode}. Using {conv_mode}.")
@@ -60,7 +60,7 @@ def main(args):
     conversation  = templates[conv_mode].copy()
     roles         = conversation.roles
 
-    # --- 3 --- Image Processing
+    # --- 3 --- Image Processing -----------------------------------------------------------------------------------------------------
     image = load_image(args.image_file)
     images_size = image.size
 
@@ -90,7 +90,7 @@ def main(args):
     else:
         image_tensor = image_tensor.unsqueeze(0).to(model.device, dtype = torch.float16)
 
-    # --- 4 --- INTERACTIVE CHAT LOOP
+    # --- 4 --- INTERACTIVE CHAT LOOP ------------------------------------------------------------------------------------------------
     while True:
         try:
             user_input = input(f"{roles[0]}: ")

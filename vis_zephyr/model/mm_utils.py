@@ -3,8 +3,6 @@
 # Description: Utility functions for multimodal processing;
 # Including: Image and Token manipulation; Image's resolution handling.
 # =================================================================================================
-
-import ast
 from typing import List, Tuple, Union
 
 import torch
@@ -12,11 +10,9 @@ from PIL import Image
 from transformers import StoppingCriteria
 
 from ..constants import IMAGE_TOKEN_INDEX
-
 #=====================================================================================================================================
-# IMAGE PROCESSING FUNCTIONS 
+# IMAGE PROCESSING FUNCTIONS
 #=====================================================================================================================================
-
 def expand2square(
         pil_image: Image.Image,
         background_color: Tuple[int, int, int],
@@ -146,9 +142,9 @@ def get_model_name_from_path(model_path: str):
 #======================================================================================================================================
 class KeywordsStoppingCriteria(StoppingCriteria):
     """
-    Stop generation when a specific keyword is generated.
+    Stop generation when a specific keyword is generated (</s>).
+    PROBLEM: only for Inference mode, not for training.
     """
-    
     def __init__(
             self,
             keywords: List[str],
@@ -184,24 +180,25 @@ class KeywordsStoppingCriteria(StoppingCriteria):
             generated_ids = output_ids[i, self.start_length:]
             for keyword_id in self.keyword_ids:
                 if len(generated_ids) >= len(keyword_id):
-                    if (generated_ids[-len(keyword_id):].cpu() == keyword_id).all():
+                    #if (generated_ids[-len(keyword_id):].cpu() == keyword_id).all():
+                    if (generated_ids[-len(keyword_id):] == keyword_id).all():
                         return True
         return False
     
-    def call_for_batch(self, output_ids: torch.LongTensor, scores: torch.FloatTensor, **kwargs) -> bool:
-        offset = min(output_ids.shape[1] - self.start_length, self.max_length)
-        self.keyword_ids = [keyword_id.to(output_ids.device) for keyword_id in self.keyword_ids]
-        for keyword_id in self.keyword_ids:
-            if (output_ids[0, -keyword_id.shape[0]:] == keyword_id).all():
-                return True
-        outputs = self.tokenizer.batch_decode(output_ids[:, -offset:], skip_special_tokens=True)[0]
-        for keyword in self.keywords:
-            if keyword in outputs:
-                return True
-        return False
+    # def call_for_batch(self, output_ids: torch.LongTensor, scores: torch.FloatTensor, **kwargs) -> bool:
+    #     offset = min(output_ids.shape[1] - self.start_length, self.max_length)
+    #     self.keyword_ids = [keyword_id.to(output_ids.device) for keyword_id in self.keyword_ids]
+    #     for keyword_id in self.keyword_ids:
+    #         if (output_ids[0, -keyword_id.shape[0]:] == keyword_id).all():
+    #             return True
+    #     outputs = self.tokenizer.batch_decode(output_ids[:, -offset:], skip_special_tokens=True)[0]
+    #     for keyword in self.keywords:
+    #         if keyword in outputs:
+    #             return True
+    #     return False
     
-    def __call__(self, output_ids: torch.LongTensor, scores: torch.FloatTensor, **kwargs) -> bool:
-        outputs = []
-        for i in range(output_ids.shape[0]):
-            outputs.append(self.call_for_batch(output_ids[i].unsqueeze(0), scores))
-        return all(outputs)
+    # def __call__(self, output_ids: torch.LongTensor, scores: torch.FloatTensor, **kwargs) -> bool:
+    #     outputs = []
+    #     for i in range(output_ids.shape[0]):
+    #         outputs.append(self.call_for_batch(output_ids[i].unsqueeze(0), scores))
+    #     return all(outputs)

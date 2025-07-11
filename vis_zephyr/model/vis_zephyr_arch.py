@@ -418,7 +418,7 @@ class VisZephyrMetaForCausalLM(ABC):
                         )
                         patches_feature = torch.cat((
                             patches_feature,
-                            self.model.image_newline[:, None, None].expand(*patches_feature.shape[:-1], 1).to(patches_feature.device)
+                            self.get_model().image_newline[:, None, None].expand(*patches_feature.shape[:-1], 1).to(patches_feature.device) #self.model -> self.get_model()
                             ), dim = -1
                         )
                         patches_feature = patches_feature.flatten(1, 2).transpose(0, 1)
@@ -437,7 +437,7 @@ class VisZephyrMetaForCausalLM(ABC):
                     if 'unpad' in mm_patch_merge_type:
                         feature = torch.cat((
                             feature,
-                            self.model.image_newline[None].to(feature.device)
+                            self.get_model().image_newline[None].to(feature.device) #self.model -> self.get_model()
                         ), dim=0)
 
                 new_features.append(feature)

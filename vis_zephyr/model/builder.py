@@ -79,7 +79,7 @@ def load_pretrained_model(
         
         #Clean up the keys (cause by standard DeepSpeed/FSDP) to match the model's state_dict
         non_lora_trainables = {(k[11:] if k.startswith('base_model.') else k): v for k, v in non_lora_trainables.items()}
-        if any(k.starswith('model.model.') for k in non_lora_trainables):
+        if any(k.startswith('model.model.') for k in non_lora_trainables):
             non_lora_trainables = {(k[12:] if k.startswith('model.model.') else k): v for k, v in non_lora_trainables.items()}
         model.load_state_dict(non_lora_trainables, strict = False)
 
