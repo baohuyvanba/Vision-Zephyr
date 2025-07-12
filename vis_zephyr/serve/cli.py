@@ -84,15 +84,23 @@ def main(args):
         )
         if isinstance(image_tensor, list):
             image_tensor = image_tensor[0]
+        #Single image tensor (C, H, W)
+    
+    if image_tensor.ndim == 3:
+        #Single image tensor (C, H, W) -> (1, C, H, W)
+        image_tensor = image_tensor.unsqueeze(0)
     
     #Move the image tensor to the correct device and dtype
-    if isinstance(image_tensor, list):
-        image_tensor = [
-            img.to(model.device, dtype = torch.float16)
-            for img in image_tensor
-        ]
-    else: #Single image tensor
-        image_tensor = image_tensor.unsqueeze(0).to(model.device, dtype = torch.float16)
+    image_tensor = [image_tensor.to(model.device, dtype = torch.float16)]
+
+   
+    # if isinstance(image_tensor, list):
+    #     image_tensor = [
+    #         img.to(model.device, dtype = torch.float16)
+    #         for img in image_tensor
+    #     ]
+    # else: #Single image tensor
+    #     image_tensor = image_tensor.unsqueeze(0).to(model.device, dtype = torch.float16)
 
     # --- 4 --- INTERACTIVE CHAT LOOP ------------------------------------------------------------------------------------------------
     while True:

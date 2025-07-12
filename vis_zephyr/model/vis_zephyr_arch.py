@@ -148,18 +148,6 @@ class VisZephyrMetaForCausalLM(ABC):
         if vision_tower is None or images is None or input_ids.shape[1] == 1:
             return input_ids, position_ids, attention_mask, past_key_values, None, labels
         
-        # #Get text embeddings only
-        # text_embeddings = []
-        # for cur_input_ids in input_ids:
-        #     text_only_ids = cur_input_ids[cur_input_ids != IMAGE_TOKEN_INDEX]
-            
-        #     cur_text_embed = self.get_model().embed_tokens(text_only_ids)
-            
-        #     if self.device is not None:
-        #         cur_text_embed = cur_text_embed.to(self.device)
-            
-        #     text_embeddings.append(cur_text_embed)
-        
         # --- 1 --- EMBEDDING IMAGE: Image -> Features -> Projected Features ----------------------------------------------------------------------
         if type(images) is list or images.ndim == 5:
             #If images is a list of tensors or a 5D tensor -> process them separately
