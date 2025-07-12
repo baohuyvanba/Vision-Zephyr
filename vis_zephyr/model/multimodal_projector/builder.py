@@ -1,7 +1,10 @@
-from mimetypes import init
+# =================================================================================================
+# File: vis_zephyr/model/multimodal_projector/builder.py
+# Description: Builder for the multimodal projector component of the Vision-Zephyr model.
+#              This component is responsible for processing visual features and integrating them with text embeddings.
+# =================================================================================================
 import torch
 import torch.nn as nn
-import re
 
 #====================================================================================================================================
 # QFormer Block Definition
@@ -51,7 +54,7 @@ class QFormer(nn.Module):
         self.learned_queries = nn.Parameter(torch.randn(self.num_queries, self.hidden_size))
         
         num_blocks  = 8 
-        ffn_dim     = self.hidden_size * 4
+        ffn_dim     = self.hidden_size * 2
         self.blocks = nn.ModuleList([
             QFormerBlock(
                 hidden_size = self.hidden_size,
@@ -72,8 +75,9 @@ class QFormer(nn.Module):
         queries    = self.learned_queries.unsqueeze(0).expand(Batch_size, -1, -1)
         
         if text_embeddings is not None:
-            if queries.shape[1] == 1:
-                init_queries = torch.cat([queries, text_embeddings], dim = 1)  # [B, Q+L, D]
+            init_queries = torch.cat([queries, text_embeddings], dim = 1)  # [B, Q+L, D]
+        else:
+            init_queries = queries
 
         # for blk in self.blocks:
         #     queries = blk(queries, features)
