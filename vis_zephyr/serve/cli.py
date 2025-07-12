@@ -111,7 +111,6 @@ def main(args):
         #USER INPUT PROCESSING
         if image is not None:
             #First message must contain an image (prepend the image token to the user input)
-            #PROBLEM
             if model.config.mm_use_im_start_end:
                 user_input = DEFAULT_IM_START_TOKEN + DEFAULT_IMAGE_TOKEN + DEFAULT_IM_END_TOKEN + "\n" + user_input
             else:
@@ -125,7 +124,7 @@ def main(args):
 
         #ASSISTANT RESPONSE placeholder
         conversation.append_message(conversation.roles[1], None)
-        prompt = conversation.get_prompt() #Get: "<|system|>...</s><|user|>...</s><|assistant|>...</s>..." -> Model
+        prompt = conversation.get_prompt() #Get: "<|system|>...</s><|user|>...</s><|assistant|>...</s>..." to pass -> Model
 
         #Tokenize the prompt (with image) and add the image token
         input_ids = tokenizer_image_token(

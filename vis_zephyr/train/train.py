@@ -181,7 +181,6 @@ def get_peft_state_maybe_zero(named_parameters, bias):
     """
     Get PEFT state dictionary, handling zero sharding
     """
-
     if bias == "none":
         #Get all LoRA parameters
         to_return = {k: t for k, t in named_parameters if "lora_" in k}
@@ -568,14 +567,14 @@ class LazySupervisedDataset(Dataset):
                 #     return self.__getitem__(random.randint(0, len(self.list_data_dict)-1))
                 sources[0]["conversations"] = conversations
             
-            #Apply padding to make image square
+            #Preprocess: PAD - Apply padding to make image square
             if self.data_args.image_aspect_ratio == 'pad':
                 from vis_zephyr.model.mm_utils import expand2square
                 image = expand2square(image, tuple(int(x * 255) for x in processor.image_mean))
                 #Preprocess Image using the CLIP processor
                 image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
             
-            #Any-res resolution images
+            #Preprocess: ANY-RES - process any-resolution images
             elif self.data_args.image_aspect_ratio == 'anyres':
                 from vis_zephyr.model.multi_scale_process import process_any_resolution_image
                 grid_pinpoints = getattr(self.data_args, 'mm_grid_pinpoints', None)
