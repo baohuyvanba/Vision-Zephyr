@@ -13,6 +13,7 @@ visual_prompt_config = dict(
     pointQA_twice = [ ["rectangle"], 'constant'],
 )
 
+#TESTING/VALIDATING CONFIGURATION
 visual_prompt_config_test = dict(
     vcr_qa  = [ ["point"], 'constant'],
     vcr_qar = [ ["point"], 'constant'],
