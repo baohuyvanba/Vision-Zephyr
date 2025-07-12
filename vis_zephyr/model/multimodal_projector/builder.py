@@ -36,7 +36,7 @@ class QFormerBlock(nn.Module):
 class QFormer(nn.Module):
     def __init__(self, config):
         super().__init__()
-        self.num_queries = 16
+        self.num_queries = 32
         self.hidden_size = config.hidden_size
         
 
@@ -47,36 +47,34 @@ class QFormer(nn.Module):
                 nhead= 8, #num_heads
                 ffn_dim= 4096
             )
-            for _ in range(5)
+            for _ in range(8)
         ])
 
         self.pre_norm = nn.LayerNorm(5120)
         self.norm = nn.LayerNorm(self.hidden_size)
 
     def forward(self, features, text_embeddings=None):
-        B = features.size(0)
-        features = self.pre_norm(features) 
-
-        queries = self.learned_queries.unsqueeze(0).expand(B, -1, -1)
-
-        # print(f"[INFO] Batch size (B): {B}")
-        # print(f"[INFO] features.shape: {features.shape}")
-        # print(f"[INFO] queries.shape before adding text_embeddings: {queries.shape}")
+        Batch_size = features.size(0)
+        features   = self.pre_norm(features)
+        queries    = self.learned_queries.unsqueeze(0).expand(Batch_size, -1, -1)
         
         if text_embeddings is not None:
-            if isinstance(text_embeddings, list):
-                text_embeddings = torch.stack(text_embeddings, dim=0)  # [B, L, D]
-                if text_embeddings.shape[0] < B:
-                    repeat_times = (B + text_embeddings.shape[0] - 1) // text_embeddings.shape[0]
-                    text_embeddings = text_embeddings.repeat((repeat_times, 1, 1))[:B]
+            init_queries = torch.cat([queries, text_embeddings], dim = 1)  # [B, Q+L, D]
+        else:
+            init_queries = queries
 
-            if queries.shape[1] == 1:  # <== chỉ concat nếu chưa concat
-                queries = torch.cat([queries, text_embeddings], dim=1)  # [B, Q+L, D]
+        # for blk in self.blocks:
+        #     queries = blk(queries, features)
+        processed_inputs = self.blocks[0](
+            init_queries, features
+        )
+        queries = processed_inputs[:, :self.num_queries, :]
+        
+        for blk in self.blocks[1:]:
+                queries = blk(queries, features)
 
-        for blk in self.blocks:
-            queries = blk(queries, features)
-
-        return self.norm(queries[:, :self.num_queries, :])
+        #return self.norm(queries[:, :self.num_queries, :])
+        return self.norm(queries)
 
 class SimpleFeatureSingleModel(nn.Module):
     """

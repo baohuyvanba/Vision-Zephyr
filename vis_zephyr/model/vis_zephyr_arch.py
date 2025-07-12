@@ -3,6 +3,7 @@
 # Description: CORE Architecture file - Defines the meta-architecture for integrating vision and language models.
 # =================================================================================================
 from abc import ABC, abstractmethod
+from pydoc import text
 
 import torch
 import torch.nn as nn
@@ -119,7 +120,7 @@ class VisZephyrMetaForCausalLM(ABC):
     def encode_images(self, images, text_embeddings):
         """Encodes images using the Vision Encoder & Multimodal Projector of the model."""
         image_features     = self.get_model().get_vision_tower()(images)
-        projected_features = self.get_model().mm_projector(image_features, text_embeddings=text_embeddings)
+        projected_features = self.get_model().mm_projector(image_features, text_embeddings = text_embeddings)
         return projected_features
 
     #----------------------------------------------------------------------------------------------------------------------------------
@@ -147,17 +148,17 @@ class VisZephyrMetaForCausalLM(ABC):
         if vision_tower is None or images is None or input_ids.shape[1] == 1:
             return input_ids, position_ids, attention_mask, past_key_values, None, labels
         
-        #Get text embeddings only
-        text_embeddings = []
-        for cur_input_ids in input_ids:
-            text_only_ids = cur_input_ids[cur_input_ids != IMAGE_TOKEN_INDEX]
+        # #Get text embeddings only
+        # text_embeddings = []
+        # for cur_input_ids in input_ids:
+        #     text_only_ids = cur_input_ids[cur_input_ids != IMAGE_TOKEN_INDEX]
             
-            cur_text_embed = self.get_model().embed_tokens(text_only_ids)
+        #     cur_text_embed = self.get_model().embed_tokens(text_only_ids)
             
-            if self.device is not None:
-                cur_text_embed = cur_text_embed.to(self.device)
+        #     if self.device is not None:
+        #         cur_text_embed = cur_text_embed.to(self.device)
             
-            text_embeddings.append(cur_text_embed)
+        #     text_embeddings.append(cur_text_embed)
         
         # --- 1 --- EMBEDDING IMAGE: Image -> Features -> Projected Features ----------------------------------------------------------------------
         if type(images) is list or images.ndim == 5:
@@ -169,7 +170,40 @@ class VisZephyrMetaForCausalLM(ABC):
                 #If images is a list, ensure all images are tensors is (1, C, H, W) or (Num_Patches, C, H_patch, W_patch) in the list
                 images = [x.unsqueeze(0) if x.ndim == 3 else x for x in images]
 
-            #Images list: [B, 1 or Num_Patches, C, H, W]] -> Cat: [B * Num_Patches, C, H, W]
+            #Now the input is (list of tensors[B, C, H, W]) or  (tensor [B, Num_Patches, C, H_patch, W_patch])
+            text_embeddings = []
+            for i, image_patches in enumerate(images):
+                #Iterate over the Image_With_Patches [Num_Patches, C, H, W] or [1, C, H, W]:
+
+                #Get current input ids for the image_with_patches
+                cur_input_ids = input_ids[i]
+                text_only_ids = cur_input_ids[cur_input_ids != IMAGE_TOKEN_INDEX]
+                #Embedding
+                cur_text_embed = self.get_model().embed_tokens(text_only_ids)
+                if self.device is not None:
+                    cur_text_embed = cur_text_embed.to(self.device)
+                #Repeating text embeddings for each patch
+                repeated_text_embed = cur_text_embed.unsqueeze(0).repeat(image_patches.shape[0], -1, -1) #[Num_Patches, Seq_Length, D_model]
+
+                text_embeddings.append(repeated_text_embed)
+            
+            #Padding text embeddings to the maximum length
+            max_text_len = max(t.shape[1] for t in text_embeddings)
+            padded_text_embeddings = []
+            for t in text_embeddings:
+                padding_needed = max_text_len - t.shape[1]
+                if padding_needed > 0:
+                    #Pad with zeros if needed
+                    padding  = torch.zeros((t.shape[0], padding_needed, t.shape[2]), dtype = t.dtype, device = t.device)
+                    padded_t = torch.cat((t, padding), dim=1)
+                else:
+                    padded_t = t
+                padded_text_embeddings.append(padded_t)
+            
+            #Concatenated Text Embeddings: [B * Num_Patches, Seq_Length, D_model]
+            text_embeddings = torch.cat(padded_text_embeddings, dim=0)
+
+            #Concatenated: Images list: B of [1 or Num_Patches, C, H, W]] -> Cat: [B * Num_Patches, C, H, W]
             concat_images  = torch.cat([image for image in images], dim=0)
             
             #IMAGE ENCODING & PROJECTING
@@ -186,11 +220,10 @@ class VisZephyrMetaForCausalLM(ABC):
             )
         else:
             #If images is a single tensor (C, H, W) - only 1 image
-            image_features = self.encode_images(images, text_embeddings)
+            text_embeddings = self.get_model().embed_tokens(input_ids[input_ids != IMAGE_TOKEN_INDEX])
+            image_features  = self.encode_images(images, text_embeddings)
 
         # --- 2 --- COMBINE TEXT + IMAGE EMBEDDINGS ---------------------------------------------------------------------------------------------
-        # print("===== Preparing Inputs and Labels for Multimodal =====")
-        # print("Number of input_ids:", input_ids.shape[0], " and number of images:", len(image_features))
         #Dummy Tensors
         _labels         = labels
         _position_ids   = position_ids
@@ -212,9 +245,7 @@ class VisZephyrMetaForCausalLM(ABC):
         cur_image_indice = 0  #Current index for image features
 
         #Remove padding if attention_mask is provided
-        # print("=== Input IDs data type:", type(input_ids), " ", input_ids.shape)
         input_ids  = [cur_input_ids[cur_attention_mask] for cur_input_ids, cur_attention_mask in zip(input_ids, attention_mask)]
-        # print("=== Input IDs data type:", type(input_ids))
             #Input ids are now is list of tensors with shape (batch_size, seq_length)
         labels     = [curent_labels[cur_attention_mask] for curent_labels, cur_attention_mask in zip(labels, attention_mask)]
 
@@ -252,7 +283,6 @@ class VisZephyrMetaForCausalLM(ABC):
 
             #Embeding the text chunks without image tokens
             cur_input_embeds = self.get_model().embed_tokens(torch.cat(cur_input_ids_noimage))
-            # print("=== Input Embeddings", cur_input_embeds[0])
             cur_input_embeds_noimage = torch.split(cur_input_embeds, split_sizes, dim = 0)
 
             cur_input_embeds_with_image = [] #New input embeddings with image features
@@ -423,7 +453,7 @@ class VisZephyrMetaForCausalLM(ABC):
                         )
                         patches_feature = torch.cat((
                             patches_feature,
-                            self.model.image_newline[:, None, None].expand(*patches_feature.shape[:-1], 1).to(patches_feature.device)
+                            self.get_model().image_newline[:, None, None].expand(*patches_feature.shape[:-1], 1).to(patches_feature.device) #self.model -> self.get_model()
                             ), dim = -1
                         )
                         patches_feature = patches_feature.flatten(1, 2).transpose(0, 1)
@@ -442,7 +472,7 @@ class VisZephyrMetaForCausalLM(ABC):
                     if 'unpad' in mm_patch_merge_type:
                         feature = torch.cat((
                             feature,
-                            self.model.image_newline[None].to(feature.device)
+                            self.get_model().image_newline[None].to(feature.device) #self.model -> self.get_model()
                         ), dim=0)
 
                 new_features.append(feature)
