@@ -3,8 +3,12 @@
 # Description: Command-line interface for running interactive inference with the Vision-Zephyr model.
 # =================================================================================================
 import argparse
+from numpy import isin
 import torch
 import requests
+
+import os
+import traceback
 
 from PIL import Image
 from io import BytesIO
@@ -30,7 +34,13 @@ def load_image(image_file: str) -> Image.Image:
         image = Image.open(BytesIO(response.content)).convert('RGB')
     #Get image from local file
     else:
-        image = Image.open(image_file).convert('RGB')
+        try:
+            image = Image.open(image_file).convert('RGB')
+            print(f"🖼️ [Debug] Loaded image size: {image.size}")
+        except Exception as e:
+            print(f"❌ [Error] Failed to load image {image_file}: {e}")
+            traceback.print_exc()
+            return
     return image
 
 #=========================================================================================================================
@@ -92,17 +102,9 @@ def main(args):
     
     #Move the image tensor to the correct device and dtype
     image_tensor = [image_tensor.to(model.device, dtype = torch.float16)]
+    print(image_tensor[0].shape, "Image tensor shape after processing.")
 
-   
-    # if isinstance(image_tensor, list):
-    #     image_tensor = [
-    #         img.to(model.device, dtype = torch.float16)
-    #         for img in image_tensor
-    #     ]
-    # else: #Single image tensor
-    #     image_tensor = image_tensor.unsqueeze(0).to(model.device, dtype = torch.float16)
-
-    # --- 4 --- INTERACTIVE CHAT LOOP ------------------------------------------------------------------------------------------------
+    # --- 4 --- INTERACTIVE CHAT LOOP ------------------------------------------------------------------------------------------------    
     while True:
         try:
             user_input = input(f"{roles[0]}: ")
@@ -144,7 +146,7 @@ def main(args):
 
         #Stopping criteria setup
         stop_str = conversation.separator_01 if conversation.separator_style == SeparatorStyle.ZEPHYR else conversation.separator_02
-        print("=== STOP STRING IS === ", stop_str, "")
+        #print("=== STOP STRING IS === ", stop_str, "")
         keywords = [stop_str]
         stopping_criteria = KeywordsStoppingCriteria(
             keywords  = keywords,
@@ -159,6 +161,13 @@ def main(args):
         )
 
         #Generate the response (INFERENCE MODE)
+        print("🧾 [Debug] Raw prompt:")
+        print(prompt)
+
+        # input_ids = tokenizer_image_token(prompt, return_tensors="pt").input_ids
+        print("🧾 [Debug] Tokenized prompt IDs:", input_ids.tolist())
+        print("🔢 [Debug] Prompt length:", input_ids.shape)
+
         with torch.inference_mode():
             output_ids = model.generate(
                 input_ids      = input_ids,
@@ -185,6 +194,9 @@ def main(args):
             print("\n[DEBUG] Final Output:\n", outputs, "\n")
 
 if __name__ == "__main__":
+    os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
+    torch.autograd.set_detect_anomaly(True)
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--model-path", type = str, required = True, help = "Path to the model checkpoint or HF repo.")
     parser.add_argument("--model-base", type = str, default = None, help = "Optional base model for loading delta weights.")
