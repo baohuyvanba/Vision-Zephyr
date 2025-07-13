@@ -91,6 +91,18 @@ conv_zephyr_v1 = Conversation(
     version = "zephyr_v1",
 )
 
+conv_zephyr_vcr = Conversation(
+    system = "You are an AI assistant specialized in Visual Commonsense Reasoning and able to understand the visual content that the user provides,"
+             "Given an image and a question, your task is to provide an accurate answer in the format 'Answer is: {Option}, ...', followed by a concise, logical explanation of your reasoning based on visual cues and common sense. Your response must clearly separate the answer and the explanation.",
+    roles = ("user", "assistant"),
+    messages = (),
+    offset = 0,
+    separator_style = SeparatorStyle.ZEPHYR,
+    separator_01 = "</s>",
+    separator_02 = None,
+    version = "zephyr_v1",
+)
+
 conv_zephyr_plain = Conversation(
     system = "",
     roles = ("", ""),
@@ -107,9 +119,10 @@ default_conversation = conv_zephyr_v1
 
 #Update the templates dictionary
 templates = {
-    "default"  : conv_zephyr_v1,
-    "zephyr_v1": conv_zephyr_v1,
-    "plain"    : conv_zephyr_plain,
+    "default"   : conv_zephyr_v1,
+    "zephyr_v1" : conv_zephyr_v1,
+    "zephyr_vcr": conv_zephyr_vcr,
+    "plain"     : conv_zephyr_plain,
 }
 
 if __name__ == "__main__":

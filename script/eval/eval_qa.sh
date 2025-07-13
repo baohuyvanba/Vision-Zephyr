@@ -5,7 +5,7 @@ python -m vis_zephyr.eval.eval_vqa \
     --image-folder ./playground/data/finetune/images/ \
     --question-file ./playground/data/vcr-val.json \
     --answers-file ./playground/data/eval/vcr_qa_answers.jsonl \
-    --conv-mode "zephyr_v1" \
+    --conv-mode "zephyr_vcr" \
     --num_workers 4 \
     --visual_prompt_style vcr_qa \
     --temperature 0 \
