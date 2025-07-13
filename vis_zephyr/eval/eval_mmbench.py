@@ -11,6 +11,8 @@ from vis_zephyr.conversation import templates, SeparatorStyle
 from vis_zephyr.model.builder import load_pretrained_model
 from vis_zephyr.model.mm_utils import process_images, tokenizer_image_token, get_model_name_from_path, KeywordsStoppingCriteria
 from vis_zephyr.utils import disable_torch_init
+from vis_zephyr.model.multi_scale_process import process_any_resolution_image
+
 from transformers import TextStreamer
 from PIL import Image
 from io import BytesIO
@@ -65,10 +67,8 @@ def eval_model(args):
             question += f"\n{opt}. {row[opt]}"
 
         # Add image tokens
-        if model.config.mm_use_im_start_end:
-            qs = DEFAULT_IM_START_TOKEN + DEFAULT_IMAGE_TOKEN + DEFAULT_IM_END_TOKEN + "\n" + question
-        else:
-            qs = DEFAULT_IMAGE_TOKEN + "\n" + question
+        qs = DEFAULT_IMAGE_TOKEN + "\n" + question
+
 
         # Reset conversation
         conversation.messages = []
@@ -78,19 +78,22 @@ def eval_model(args):
 
         # Tokenize prompt
         input_ids = tokenizer_image_token(
-            prompt            = prompt,
-            tokenizer         = tokenizer,
-            image_token_index = IMAGE_TOKEN_INDEX,
-            return_tensors    = 'pt',
-        ).unsqueeze(0).to(model.device)
+            prompt=prompt,
+            tokenizer=tokenizer,
+            return_tensors='pt'
+        )
 
         # Process image
         image = load_image_from_base64(row['image'])
-        image_tensor = process_images(
-            images=[image],
-            image_processor=image_processor,
-            model_config=model.config
-        )[0].unsqueeze(0).to(model.device, dtype=torch.float16)
+
+        image_tensor = process_any_resolution_image(
+            image=image,
+            processor=image_processor,
+            grid_pinpoints=model.config.mm_grid_pinpoints
+        )
+
+        image_tensors = image_tensors.to(dtype = torch.float16)
+
 
         # Stopping criteria & streamer
         stopping_criteria = KeywordsStoppingCriteria(
