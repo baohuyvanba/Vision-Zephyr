@@ -20,6 +20,33 @@ from vis_zephyr.model.vip_processor.processor import visual_prompt_process
 from vis_zephyr.conversation import templates, SeparatorStyle
 from vis_zephyr.model.multi_scale_process import process_any_resolution_image
 
+def extract_answer(output_string: str) -> str:
+    # Bước 1: Tìm các ký tự A, B, C, D viết hoa không phải chữ cái đầu câu
+    # Điều kiện: Ký tự phải đứng sau một khoảng trắng, dấu chấm, dấu phẩy, hoặc dấu ngoặc.
+    # Hoặc đứng độc lập như "(A)", "A."
+    matches = re.findall(r"(?<=[ .,(\[])([ABCD])(?=[ .,)\]])", output_string)
+    if matches:
+        return matches[0]
+
+    # Bước 2: Tìm ký tự A, B, C, D viết hoa không phải chữ cái đầu tiên của câu (từ câu thứ 2 trở đi)
+    # Ví dụ: "Câu 1. Đáp án là B. Câu 2. A là đúng." -> Lấy 'A'
+    sentences = re.split(r'(?<=[.!?])\s+', output_string)
+    if len(sentences) > 1:
+        for sentence in sentences[1:]: # Bắt đầu từ câu thứ 2
+            # Tìm ký tự A, B, C, D đứng độc lập (không phải một phần của từ)
+            # Ví dụ: " A.", "(B)", " C "
+            isolated_matches = re.findall(r"(?<![a-zA-Z0-9])([ABCD])(?![a-zA-Z0-9])", sentence)
+            if isolated_matches:
+                return isolated_matches[0]
+
+    # Bước 3: Lấy ký tự đầu tiên trong toàn bộ chuỗi nếu là A, B, C, D
+    first_char_match = re.match(r"^[ABCD]", output_string.strip())
+    if first_char_match:
+        return first_char_match.group(0)
+
+    # Bước cuối cùng: Nếu không tìm thấy, trả về "A"
+    return "A"
+
 #Divide into chunks for distributed evaluation
 def split_list(list, n):
     """Split a list into n chunks (nearly equal parts)"""
@@ -52,7 +79,7 @@ class VQADataset(Dataset):
         max_attempts = 10
         while True:
             try:
-                image, conversation = visual_prompt_process(source_dup, image, image_size_anchor = self.image_processor.crop_size['height'], data_args = self.data_args, model_config = self.model_config, image_aspect_ratio = self.image_aspect_ratio)
+                image, conversation = visual_prompt_process(source_dup, image, image_size_anchor = self.image_processor.crop_size['height'], data_args = self.data_args)
                 break
             except:
                 attempt += 1
@@ -75,7 +102,8 @@ class VQADataset(Dataset):
             processor      = self.image_processor,
             grid_pinpoints = self.model_config.mm_grid_pinpoints,
         )
-        image_tensors = [image_tensors.to(self.device, dtype = torch.float16)]
+        image_tensors = image_tensors.to(dtype = torch.float16)
+        #print("Image shape:", image_tensors[0].shape)
 
         input_ids = tokenizer_image_token(
             prompt = prompt,
@@ -84,6 +112,9 @@ class VQADataset(Dataset):
         )
 
         return input_ids, image_tensors, gpt_char, prompt
+    
+    def __len__(self):
+        return len(self.questions)
 
 def create_data_loader(questions, image_folder, tokenizer, image_processor, model_config, args, batch_size = 1):
     assert batch_size == 1, "Batch size must be 1 for VQA evaluation"
@@ -117,14 +148,14 @@ def eval_model(args):
     )
 
     # --- 2 --- Load the VQA dataset ------------------------------------------------------------------------------------------
-    questions = json.load(open(os.path.expanduser(args.questions_file)))
+    questions = json.load(open(os.path.expanduser(args.question_file)))
     questions = get_chunk(
         questions,
         n = args.num_chunks,
-        k = args.chunk_index
+        k = args.chunk_idx
     )
     
-    answer_file = os.path.expanduser(args.answer_file)
+    answer_file = os.path.expanduser(args.answers_file)
     os.makedirs(os.path.dirname(answer_file), exist_ok = True)
     ans_file = open(answer_file, "w")
 
@@ -143,14 +174,15 @@ def eval_model(args):
 
     #RUN
     for i, ((input_ids, image_tensor, gpt_char, prompt), line) in tqdm(enumerate(zip(data_loader, questions)), total = len(questions)):
-        index = line['question_id']
+        index = line['id']
         total += 1
 
         input_ids    = input_ids.to(model.device)
-        image_tensor = image_tensor.unsqueeze(0).to(dtype = torch.float16, device = model.device)
+        image_tensor = image_tensor.to(dtype = torch.float16, device = model.device)
+        print("SHAPE:", image_tensor.shape)
         
         stopping_criteria = KeywordsStoppingCriteria(
-            keywords  = [SeparatorStyle.ZEPHYR],
+            keywords  = ["</s>"],
             tokenizer = tokenizer,
             input_ids = input_ids
         )
@@ -164,7 +196,7 @@ def eval_model(args):
                 temperature    = args.temperature,
                 eos_token_id   = terminators,
                 use_cache      = True,
-                stopping_criteria = stopping_criteria,
+                # stopping_criteria = stopping_criteria,
             )
         
         outputs = tokenizer.batch_decode(output_ids, skip_special_tokens=True)[0].strip()
@@ -186,7 +218,7 @@ def eval_model(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--model-path", type=str, default="")
-    parser.add_argument("--model-base", type=str, default=None)
+    parser.add_argument("--model-base", type = str, default = None, help = "Optional base model for loading delta weights.")
     parser.add_argument("--image-folder", type=str, default="")
     parser.add_argument("--question-file", type=str, default="tables/question.jsonl")
     parser.add_argument("--answers-file", type=str, default="answer.jsonl")
@@ -200,36 +232,10 @@ if __name__ == "__main__":
     parser.add_argument("--alpha", type=int, default=128)
     parser.add_argument("--image_aspect_ratio", type=str, default=None)
     parser.add_argument("--visual_prompt_style", type=str, default=None)
+    parser.add_argument("--load-8bit", action = "store_true", help = "Load the model in 8-bit mode.")
+    parser.add_argument("--load-4bit", action = "store_true", help = "Load the model in 4-bit mode.")
+    parser.add_argument("--device", type = str, default = "cuda", help = "Device to use (e.g., 'cuda', 'cpu').")
+    parser.add_argument("--num_workers", type = int, default = 1)
     
     args = parser.parse_args()
     eval_model(args)
-
-
-import re
-
-def extract_answer(output_string: str) -> str:
-    # Bước 1: Tìm các ký tự A, B, C, D viết hoa không phải chữ cái đầu câu
-    # Điều kiện: Ký tự phải đứng sau một khoảng trắng, dấu chấm, dấu phẩy, hoặc dấu ngoặc.
-    # Hoặc đứng độc lập như "(A)", "A."
-    matches = re.findall(r"(?<=[ .,(\[])([ABCD])(?=[ .,)\]])", output_string)
-    if matches:
-        return matches[0]
-
-    # Bước 2: Tìm ký tự A, B, C, D viết hoa không phải chữ cái đầu tiên của câu (từ câu thứ 2 trở đi)
-    # Ví dụ: "Câu 1. Đáp án là B. Câu 2. A là đúng." -> Lấy 'A'
-    sentences = re.split(r'(?<=[.!?])\s+', output_string)
-    if len(sentences) > 1:
-        for sentence in sentences[1:]: # Bắt đầu từ câu thứ 2
-            # Tìm ký tự A, B, C, D đứng độc lập (không phải một phần của từ)
-            # Ví dụ: " A.", "(B)", " C "
-            isolated_matches = re.findall(r"(?<![a-zA-Z0-9])([ABCD])(?![a-zA-Z0-9])", sentence)
-            if isolated_matches:
-                return isolated_matches[0]
-
-    # Bước 3: Lấy ký tự đầu tiên trong toàn bộ chuỗi nếu là A, B, C, D
-    first_char_match = re.match(r"^[ABCD]", output_string.strip())
-    if first_char_match:
-        return first_char_match.group(0)
-
-    # Bước cuối cùng: Nếu không tìm thấy, trả về "A"
-    return "A"

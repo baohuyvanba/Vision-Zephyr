@@ -1,14 +1,13 @@
 #!/bin/bash
-
-OUTPUT_DIR="eval_output"
-mkdir -p $OUTPUT_DIR
-
-python -m viszephyr.eval.eval_vqa \
+python -m vis_zephyr.eval.eval_vqa \
+    --model-base "HuggingFaceH4/zephyr-7b-beta" \
     --model-path ./checkpoints/vis-zephyr-7b-v1-pretrain \
-    --image-folder .playground/data/finetune/images/vcr1images/ \
-    --question-file $QUESTION_FILE \
-    --answers-file $OUTPUT_DIR/vcr_qa_answers.jsonl \
-    --visual-prompt-style vcr_qa \
+    --image-folder ./playground/data/finetune/images/ \
+    --question-file ./playground/data/vcr-val.json \
+    --answers-file ./playground/data/eval/vcr_qa_answers.jsonl \
+    --conv-mode "zephyr_v1" \
+    --num_workers 4 \
+    --visual_prompt_style vcr_qa \
     --temperature 0 \
-    --max-new-tokens 128 \
-    --image-aspect-ratio anyres
+    --max_new_tokens 128 \
+    --image_aspect_ratio anyres
