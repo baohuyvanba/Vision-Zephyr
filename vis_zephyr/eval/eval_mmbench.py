@@ -51,6 +51,8 @@ def eval_model(args):
     stop_str = conversation.separator_01 if conversation.separator_style == SeparatorStyle.ZEPHYR else conversation.separator_02
     keywords = [stop_str]
 
+    terminators = [tokenizer.eos_token_id]
+
     # Iterate over questions
     for _, row in tqdm(questions.iterrows(), total=len(questions)):
         idx = row['index']
@@ -83,6 +85,10 @@ def eval_model(args):
             return_tensors='pt'
         )
 
+        if input_ids is None:
+            raise ValueError(f"tokenizer_image_token returned None for prompt: {prompt}")
+        print(f"input_ids shape: {input_ids.shape}")
+
         if len(input_ids.shape) == 1:
             input_ids = input_ids.unsqueeze(0)
 
@@ -95,38 +101,38 @@ def eval_model(args):
             grid_pinpoints=model.config.mm_grid_pinpoints
         )
 
-        image_tensors = image_tensors.to(dtype = torch.float16)
-
-        if input_ids is None:
-            raise ValueError(f"tokenizer_image_token returned None for prompt: {prompt}")
-        print(f"input_ids shape: {input_ids.shape}")
+        image_tensors = [image_tensors.to(dtype = torch.float16)]
+    
+        # print(f"images_ids shape: {image_tensors.shape}")
 
 
 
         # Stopping criteria & streamer
-        stopping_criteria = KeywordsStoppingCriteria(
-            keywords  = keywords,
-            tokenizer = tokenizer,
-            input_ids = input_ids
-        )
-        streamer = TextStreamer(
-            tokenizer   = tokenizer,
-            skip_prompt = True,
-            skip_special_tokens = True
-        )
+        # stopping_criteria = KeywordsStoppingCriteria(
+        #     keywords  = keywords,
+        #     tokenizer = tokenizer,
+        #     input_ids = input_ids
+        # )
+        # streamer = TextStreamer(
+        #     tokenizer   = tokenizer,
+        #     skip_prompt = True,
+        #     skip_special_tokens = True
+        # )
+
 
         # Generate
         with torch.inference_mode():
             output_ids = model.generate(
-                input_ids=input_ids,
-                images=image_tensors,
-                do_sample=True if args.temperature > 0 else False,
-                temperature=args.temperature,
-                max_new_tokens=args.max_new_tokens,
-                use_cache=True,
-                stopping_criteria=[stopping_criteria],
-                streamer=streamer
+                input_ids      = input_ids,
+                images         = image_tensors,
+                max_new_tokens = args.max_new_tokens,
+                do_sample      = True if args.temperature > 0 else False,
+                temperature    = args.temperature,
+                eos_token_id   = terminators,
+                use_cache      = True,
+                # stopping_criteria = stopping_criteria,
             )
+
         # Decode
         outputs = tokenizer.decode(output_ids[0, input_ids.shape[1]:], skip_special_tokens=True).strip()
         if outputs.endswith(stop_str):
