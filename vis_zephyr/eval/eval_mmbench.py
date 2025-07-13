@@ -83,16 +83,24 @@ def eval_model(args):
             return_tensors='pt'
         )
 
+        if len(input_ids.shape) == 1:
+            input_ids = input_ids.unsqueeze(0)
+
         # Process image
         image = load_image_from_base64(row['image'])
 
-        image_tensor = process_any_resolution_image(
+        image_tensors = process_any_resolution_image(
             image=image,
             processor=image_processor,
             grid_pinpoints=model.config.mm_grid_pinpoints
         )
 
         image_tensors = image_tensors.to(dtype = torch.float16)
+
+        if input_ids is None:
+            raise ValueError(f"tokenizer_image_token returned None for prompt: {prompt}")
+        print(f"input_ids shape: {input_ids.shape}")
+
 
 
         # Stopping criteria & streamer
@@ -111,7 +119,7 @@ def eval_model(args):
         with torch.inference_mode():
             output_ids = model.generate(
                 input_ids=input_ids,
-                images=image_tensor,
+                images=image_tensors,
                 do_sample=True if args.temperature > 0 else False,
                 temperature=args.temperature,
                 max_new_tokens=args.max_new_tokens,
@@ -147,7 +155,7 @@ if __name__ == "__main__":
     parser.add_argument("--conv-mode", type=str, default="zephyr_v1")
     parser.add_argument("--device", type=str, default="cuda")
     parser.add_argument("--temperature", type=float, default=0.2)
-    parser.add_argument("--max-new-tokens", type=int, default=512)
+    parser.add_argument("--max-new-tokens", type=int, default=128)
     parser.add_argument("--debug", action="store_true", help="Print debug info")
     args = parser.parse_args()
     eval_model(args)
