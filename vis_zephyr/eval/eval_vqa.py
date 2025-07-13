@@ -179,7 +179,7 @@ def eval_model(args):
 
         input_ids    = input_ids.to(model.device)
         image_tensor = image_tensor.to(dtype = torch.float16, device = model.device)
-        print("SHAPE:", image_tensor.shape)
+        #print("SHAPE:", image_tensor.shape)
         
         stopping_criteria = KeywordsStoppingCriteria(
             keywords  = ["</s>"],
