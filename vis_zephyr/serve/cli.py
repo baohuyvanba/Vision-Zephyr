@@ -3,7 +3,6 @@
 # Description: Command-line interface for running interactive inference with the Vision-Zephyr model.
 # =================================================================================================
 import argparse
-from numpy import isin
 import torch
 import requests
 
@@ -16,6 +15,7 @@ from vis_zephyr.conversation import templates, SeparatorStyle
 from vis_zephyr.model.builder import load_pretrained_model
 from vis_zephyr.model.mm_utils import process_images, tokenizer_image_token, get_model_name_from_path, KeywordsStoppingCriteria
 from vis_zephyr.utils import disable_torch_init
+from vis_zephyr.model.multi_scale_process import process_any_resolution_image
 
 #=========================================================================================================================
 # UTILITIES FUNCTION
