@@ -181,7 +181,7 @@ class KeywordsStoppingCriteria(StoppingCriteria):
             for keyword_id in self.keyword_ids:
                 if len(generated_ids) >= len(keyword_id):
                     #if (generated_ids[-len(keyword_id):].cpu() == keyword_id).all():
-                    if (generated_ids[-len(keyword_id):] == keyword_id).all():
+                    if (generated_ids[-len(keyword_id):].cpu() == keyword_id).all():
                         return True
         return False
     
