@@ -93,7 +93,7 @@ class VisZephyrMetaModel:
         
         #Load pre-trained Projector weights if available
         if mm_projector_train is not None:
-            projector_weights = torch.load(mm_projector_train, map_location='cpu')
+            projector_weights = torch.load(mm_projector_train, map_location = 'cpu')
             
             def get_w(weights, keyword):
                 """Extract weights for a specific keyword."""
