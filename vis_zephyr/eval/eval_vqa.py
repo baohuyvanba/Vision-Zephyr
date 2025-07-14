@@ -188,7 +188,6 @@ def eval_model(args):
                 temperature    = args.temperature,
                 eos_token_id   = terminators,
                 use_cache      = True,
-                # stopping_criteria = stopping_criteria,
             )
         
         outputs = tokenizer.batch_decode(output_ids, skip_special_tokens=True)[0].strip()
