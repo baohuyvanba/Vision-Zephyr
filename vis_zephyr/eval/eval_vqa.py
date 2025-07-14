@@ -103,7 +103,6 @@ class VQADataset(Dataset):
             grid_pinpoints = self.model_config.mm_grid_pinpoints,
         )
         image_tensors = image_tensors.to(dtype = torch.float16)
-        #print("Image shape:", image_tensors[0].shape)
 
         input_ids = tokenizer_image_token(
             prompt = prompt,
@@ -179,13 +178,6 @@ def eval_model(args):
 
         input_ids    = input_ids.to(model.device)
         image_tensor = image_tensor.to(dtype = torch.float16, device = model.device)
-        #print("SHAPE:", image_tensor.shape)
-        
-        stopping_criteria = KeywordsStoppingCriteria(
-            keywords  = ["</s>"],
-            tokenizer = tokenizer,
-            input_ids = input_ids
-        )
 
         with torch.inference_mode():
             output_ids = model.generate(
@@ -200,16 +192,18 @@ def eval_model(args):
             )
         
         outputs = tokenizer.batch_decode(output_ids, skip_special_tokens=True)[0].strip()
-        
+        #Process Output -> Choice
+        outputs_choice = extract_answer(outputs)
+
         ans_id = shortuuid.uuid()
         ans_file.write(json.dumps({"question_id": index,
                                    "text": outputs,
+                                   "answer": outputs_choice, 
                                    "answer_id": ans_id,
                                    "model_id": model_name,
                                    "metadata": {}}) + "\n")
         
-        #Process Output
-        outputs = extract_answer(outputs)
+        
         if outputs.lower() == gpt_char[0].lower():
             correct += 1
         print(f"Accuracy: {correct / (i + 1)}")
