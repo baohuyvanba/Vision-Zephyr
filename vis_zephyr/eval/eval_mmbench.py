@@ -82,6 +82,8 @@ def eval_model(args):
         conversation.append_message(roles[1], None)
         prompt = conversation.get_prompt()
 
+        print("prompt", prompt)
+
         # Tokenize prompt
         input_ids = tokenizer_image_token(prompt, tokenizer, IMAGE_TOKEN_INDEX, return_tensors='pt').unsqueeze(0).cuda()
 
@@ -134,9 +136,11 @@ def eval_model(args):
             )
 
         # Decode
-        outputs = tokenizer.decode(output_ids[0, input_ids.shape[1]:], skip_special_tokens=True).strip()
-        if outputs.endswith(stop_str):
-            outputs = outputs[:-len(stop_str)].strip()
+        # outputs = tokenizer.decode(output_ids[0, input_ids.shape[1]:], skip_special_tokens=True).strip()
+        # # print("outputs1", outputs)
+        # if outputs.endswith(stop_str):
+        #     outputs = outputs[:-len(stop_str)].strip()
+        outputs = tokenizer.batch_decode(output_ids, skip_special_tokens=True)[0].strip()
 
         # Write answer
         ans_id = shortuuid.uuid()
