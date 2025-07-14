@@ -2,6 +2,7 @@ import argparse
 import os
 import json
 import torch
+import math
 import pandas as pd
 from tqdm import tqdm
 import shortuuid
@@ -17,6 +18,7 @@ from transformers import TextStreamer
 from PIL import Image
 from io import BytesIO
 import base64
+
 
 def load_image_from_base64(base64_str):
     return Image.open(BytesIO(base64.b64decode(base64_str))).convert('RGB')
@@ -71,6 +73,8 @@ def eval_model(args):
         # Add image tokens
         qs = DEFAULT_IMAGE_TOKEN + "\n" + question
 
+        qs = qs + '\n' + "Answer with the option's letter from the given choices directly."
+
 
         # Reset conversation
         conversation.messages = []
@@ -79,11 +83,7 @@ def eval_model(args):
         prompt = conversation.get_prompt()
 
         # Tokenize prompt
-        input_ids = tokenizer_image_token(
-            prompt=prompt,
-            tokenizer=tokenizer,
-            return_tensors='pt'
-        )
+        input_ids = tokenizer_image_token(prompt, tokenizer, IMAGE_TOKEN_INDEX, return_tensors='pt').unsqueeze(0).cuda()
 
         if input_ids is None:
             raise ValueError(f"tokenizer_image_token returned None for prompt: {prompt}")
@@ -161,7 +161,7 @@ if __name__ == "__main__":
     parser.add_argument("--conv-mode", type=str, default="zephyr_v1")
     parser.add_argument("--device", type=str, default="cuda")
     parser.add_argument("--temperature", type=float, default=0.2)
-    parser.add_argument("--max-new-tokens", type=int, default=128)
+    parser.add_argument("--max-new-tokens", type=int, default=1024)
     parser.add_argument("--debug", action="store_true", help="Print debug info")
     args = parser.parse_args()
     eval_model(args)
