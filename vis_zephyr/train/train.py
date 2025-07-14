@@ -567,14 +567,14 @@ class LazySupervisedDataset(Dataset):
                 #     return self.__getitem__(random.randint(0, len(self.list_data_dict)-1))
                 sources[0]["conversations"] = conversations
             
-            #Preprocess: PAD - Apply padding to make image square
+            #1. Preprocess: PAD - Apply padding to make image square
             if self.data_args.image_aspect_ratio == 'pad':
                 from vis_zephyr.model.mm_utils import expand2square
                 image = expand2square(image, tuple(int(x * 255) for x in processor.image_mean))
                 #Preprocess Image using the CLIP processor
                 image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
             
-            #Preprocess: ANY-RES - process any-resolution images
+            #2. Preprocess: ANY-RES - process any-resolution images
             elif self.data_args.image_aspect_ratio == 'anyres':
                 from vis_zephyr.model.multi_scale_process import process_any_resolution_image
                 grid_pinpoints = getattr(self.data_args, 'mm_grid_pinpoints', None)
@@ -583,16 +583,10 @@ class LazySupervisedDataset(Dataset):
                     processor      = processor,
                     grid_pinpoints = grid_pinpoints
                 )
-                #Preprocess Patches using the CLIP processor
-                # image_tensors_list = [
-                #     processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
-                #     for image in image_tensors_list
-                # ]
                 image = image_tensors_list
             
-            #Image is square
+            #2. Image is square
             else:
-                #Preprocess Image using the CLIP processor
                 image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
 
             #Preprocess conversations
@@ -835,7 +829,7 @@ def train(
             )
     
     # > Fine-tune: Stage 2
-    #Freeze MLP adapter
+    #Freeze MLP adapter if specified
     model.config.freeze_mm_mlp_adapter = training_args.freeze_mm_mlp_adapter
     if training_args.freeze_mm_mlp_adapter:
         for p in model.get_model().mm_projector.parameters():
