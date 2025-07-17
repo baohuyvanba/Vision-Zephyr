@@ -1,6 +1,8 @@
 # =================================================================================================
 # File: vis_zephyr/model/vip_processor/processor.py
-# Description: Handles Visual Prompt processing for Vision-Zephyr models.
+# Description:
+#    - Processes visual prompts for images, blending shapes and colors based on configurations.
+#    - Generates conversations based on visual prompts for datasets like VCR.
 # =================================================================================================
 import json
 import random
@@ -39,7 +41,7 @@ def visual_prompt_process(
             shape_color_info, all_instance_index, conversations = create_question_qa_qar(source, vip_shapes, color_list = list(color_pool.items()))
         
         #Get bboxes and segmentations
-        source['bboxes'] = [metadata['boxes'][instance_index][:-1] for instance_index in all_instance_index]
+        source['bboxes']        = [metadata['boxes'][instance_index][:-1] for instance_index in all_instance_index]
         source['segmentations'] = []
 
         for instance_index in all_instance_index:
