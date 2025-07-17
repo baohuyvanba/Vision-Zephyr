@@ -10,7 +10,7 @@ from fastapi.responses import StreamingResponse
 from starlette.concurrency import run_in_threadpool
 
 from vis_zephyr.constants import DEFAULT_IMAGE_TOKEN, IMAGE_TOKEN_INDEX
-from vis_zephyr.conversation import templates
+from vis_zephyr.conversation import templates, SeparatorStyle
 from vis_zephyr.model.builder import load_pretrained_model
 from vis_zephyr.model.mm_utils import process_images, tokenizer_image_token, KeywordsStoppingCriteria
 from vis_zephyr.model.multi_scale_process import process_any_resolution_image
