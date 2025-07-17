@@ -4,6 +4,8 @@ from io import BytesIO
 from PIL import Image
 from transformers import TextStreamer
 import torch
+from queue import Queue
+import threading
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.responses import StreamingResponse
@@ -133,9 +135,14 @@ async def chat(request: Request):
             input_ids=input_ids
         )
 
-        # Real-time streamer
         async def generate_stream():
-            streamer = TextStreamer(
+            q = Queue()
+
+            class MyStreamer(TextStreamer):
+                def on_finalized_text(self, text: str, stream_end: bool = False):
+                    q.put(text)
+
+            streamer = MyStreamer(
                 tokenizer=tokenizer,
                 skip_prompt=True,
                 skip_special_tokens=True
@@ -154,10 +161,16 @@ async def chat(request: Request):
                         use_cache=True,
                         stopping_criteria=[stopping_criteria]
                     )
+                q.put(None)  # Đánh dấu kết thúc
 
-            await run_in_threadpool(_generate)
-            yield ""  # Kết thúc
+            # Chạy generate ở thread khác, để generate và yield chạy song song
+            threading.Thread(target=_generate, daemon=True).start()
 
+            while True:
+                text = q.get()
+                if text is None:
+                    break
+                yield text
         return StreamingResponse(generate_stream(), media_type="text/plain")
 
     except Exception as e:
