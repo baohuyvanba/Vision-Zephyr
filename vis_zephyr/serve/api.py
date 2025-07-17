@@ -2,14 +2,18 @@
 import base64
 from io import BytesIO
 from PIL import Image
+from transformers import TextStreamer
+import torch
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
-import torch
+from fastapi.responses import StreamingResponse
+from starlette.concurrency import run_in_threadpool
 
 from vis_zephyr.constants import DEFAULT_IMAGE_TOKEN, IMAGE_TOKEN_INDEX
 from vis_zephyr.conversation import templates
 from vis_zephyr.model.builder import load_pretrained_model
-from vis_zephyr.model.mm_utils import process_images, tokenizer_image_token
+from vis_zephyr.model.mm_utils import process_images, tokenizer_image_token, KeywordsStoppingCriteria
+from vis_zephyr.model.multi_scale_process import process_any_resolution_image
 
 # Khởi tạo FastAPI app
 app = FastAPI()
@@ -20,6 +24,7 @@ print("[🚀] Loading model, tokenizer, processor...")
 model_base = "HuggingFaceH4/zephyr-7b-beta"
 model_path = "./checkpoints/vis-zephyr-7b-v1-pretrain"
 model_name = "zephyr-7b-beta"  # Hoặc tự động lấy từ path
+sessions = {}
 
 tokenizer, model, image_processor, context_length = load_pretrained_model(
     model_path = model_path,
@@ -45,64 +50,117 @@ def decode_base64_image(base64_str: str) -> Image.Image:
     except Exception as e:
         raise ValueError(f"Failed to decode base64 image: {e}")
 
-# --- 3 --- API endpoint nhận POST
 @app.post("/chat")
 async def chat(request: Request):
     """
     Nhận JSON:
     {
-      "image_base64": "<...>",
+      "session_id": "abc123",
+      "image_base64": "<...>",  # Bắt buộc ở lần đầu
       "question": "..."
     }
     """
     try:
         data = await request.json()
-        image_b64 = data.get("image_base64")
+        session_id = data.get("session_id")
         question = data.get("question")
+        image_b64 = data.get("image_base64")
 
-        if not image_b64 or not question:
-            return JSONResponse({"error": "Missing image_base64 or question"}, status_code=400)
+        if not session_id or not question:
+            return JSONResponse({"error": "Missing session_id or question"}, status_code=400)
 
-        # Decode ảnh
-        pil_image = decode_base64_image(image_b64)
+        # Tạo mới conversation nếu chưa có
+        if session_id not in sessions:
+            conversation = templates["zephyr_v1"].copy()
+            sessions[session_id] = {
+                "conversation": conversation,
+                "first_image_sent": False
+            }
+        else:
+            conversation = sessions[session_id]["conversation"]
 
-        # Preprocess ảnh
-        image_tensor = process_images(
-            images = pil_image,
-            image_processor = image_processor,
-            model_config = model.config
-        )
-        if isinstance(image_tensor, list):
-            image_tensor = image_tensor[0]
-        if image_tensor.ndim == 3:
-            image_tensor = image_tensor.unsqueeze(0)
-        image_tensor = [image_tensor.to(model.device, dtype=torch.float16)]
+        # Lần đầu tiên: bắt buộc có ảnh
+        if not sessions[session_id]["first_image_sent"]:
+            if not image_b64:
+                return JSONResponse({"error": "Missing image_base64 for first request"}, status_code=400)
 
-        # Tạo prompt
-        user_input = DEFAULT_IMAGE_TOKEN + "\n" + question
-        conversation = conv_template.copy()
-        conversation.append_message(roles[0], user_input)
-        conversation.append_message(roles[1], None)
+            # Decode ảnh
+            pil_image = decode_base64_image(image_b64)
+            images_size = pil_image.size
+
+            # Preprocess ảnh
+            image_tensor = process_any_resolution_image(
+                image=pil_image,
+                processor=image_processor,
+                grid_pinpoints=model.config.mm_grid_pinpoints,
+            )
+            if image_tensor.ndim == 3:
+                image_tensor = image_tensor.unsqueeze(0)
+            image_tensor = [image_tensor.to(model.device, dtype=torch.float16)]
+
+            # Prepend image token
+            if model.config.mm_use_im_start_end:
+                user_input = DEFAULT_IM_START_TOKEN + DEFAULT_IMAGE_TOKEN + DEFAULT_IM_END_TOKEN + "\n" + question
+            else:
+                user_input = DEFAULT_IMAGE_TOKEN + "\n" + question
+
+            # Lưu lại cho session
+            sessions[session_id]["first_image_sent"] = True
+            sessions[session_id]["image_tensor"] = image_tensor
+            sessions[session_id]["images_size"] = images_size
+
+        else:
+            # Những lần sau chỉ text
+            user_input = question
+            image_tensor = sessions[session_id]["image_tensor"]
+            images_size = sessions[session_id]["images_size"]
+
+        # Append user & assistant message
+        conversation.append_message(conversation.roles[0], user_input)
+        conversation.append_message(conversation.roles[1], None)
         prompt = conversation.get_prompt()
 
+        # Tokenize prompt
         input_ids = tokenizer_image_token(
             prompt, tokenizer, IMAGE_TOKEN_INDEX, return_tensors='pt'
         ).unsqueeze(0).to(model.device)
 
-        # Inference
-        with torch.inference_mode():
-            output_ids = model.generate(
-                input_ids=input_ids,
-                images=image_tensor,
-                do_sample=True,
-                temperature=0.2,
-                max_new_tokens=512,
-                use_cache=True
+        # Stopping criteria
+        stop_str = conversation.separator_01 if conversation.separator_style == SeparatorStyle.ZEPHYR else conversation.separator_02
+        stopping_criteria = KeywordsStoppingCriteria(
+            keywords=[stop_str],
+            tokenizer=tokenizer,
+            input_ids=input_ids
+        )
+
+        # Real-time streamer
+        async def generate_stream():
+            streamer = TextStreamer(
+                tokenizer=tokenizer,
+                skip_prompt=True,
+                skip_special_tokens=True
             )
 
-        output_text = tokenizer.decode(output_ids[0, input_ids.shape[1]:]).strip()
+            def _generate():
+                with torch.inference_mode():
+                    model.generate(
+                        input_ids=input_ids,
+                        images=image_tensor,
+                        images_size=[images_size],
+                        do_sample=True,
+                        temperature=0.2,
+                        max_new_tokens=512,
+                        streamer=streamer,
+                        use_cache=True,
+                        stopping_criteria=[stopping_criteria]
+                    )
 
-        return JSONResponse({"answer": output_text})
+            await run_in_threadpool(_generate)
+            yield ""  # Kết thúc
+
+        return StreamingResponse(generate_stream(), media_type="text/plain")
 
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return JSONResponse({"error": str(e)}, status_code=500)
