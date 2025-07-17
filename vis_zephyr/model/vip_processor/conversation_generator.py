@@ -1,10 +1,9 @@
 # =================================================================================================
-# File: vis_zephyr/model/vip_processorprocessor/conservation_organizer.py
-#
+# File: vis_zephyr/model/vip_processor/conversation_generator.py
+# Description: Blends visual prompts onto images based on specified shapes and configurations.
 # =================================================================================================
 import random
 from PIL import Image, ImageDraw
-from networkx import draw
 from shapely.ops import unary_union
 from shapely.geometry import Polygon
 
