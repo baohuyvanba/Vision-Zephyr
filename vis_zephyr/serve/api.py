@@ -9,6 +9,7 @@ import threading
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.responses import StreamingResponse
+from fastapi.middleware.cors import CORSMiddleware
 from starlette.concurrency import run_in_threadpool
 
 from vis_zephyr.constants import DEFAULT_IMAGE_TOKEN, IMAGE_TOKEN_INDEX
@@ -19,6 +20,15 @@ from vis_zephyr.model.multi_scale_process import process_any_resolution_image
 
 # Khởi tạo FastAPI app
 app = FastAPI()
+
+# Bật CORS để cho phép frontend gọi API từ trình duyệt
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],            # Cho phép tất cả origin; thay bằng ["http://localhost:3000"] nếu muốn chỉ cho frontend local
+    allow_credentials=True,
+    allow_methods=["*"],            # Cho phép tất cả method: GET, POST, OPTIONS,...
+    allow_headers=["*"],            # Cho phép tất cả header
+)
 
 # --- 1 --- Load model, tokenizer, processor (chỉ chạy 1 lần khi server start)
 print("[🚀] Loading model, tokenizer, processor...")
