@@ -13,19 +13,20 @@
 # ==================================================================================================
 
 deepspeed vis_zephyr/train/train_mem.py \
-    --deepspeed ./script/zero2.json \
+    --deepspeed ./script/zero3.json \
     --lora_enable True --lora_r 128 --lora_alpha 256 --lora_dropout 0.05 --lora_bias "none" \
     --model_name_or_path "HuggingFaceH4/zephyr-7b-beta" \
-    --version "zephyr_v1" \
-    --data_path ./playground/data/finetune/test.json \
-    --image_folder ./playground/data/finetune/images/ \
+    --version zephyr_v1 \
+    --data_path ./playground/data/tuning/vcr.json \
+    --image_folder ./playground/data/tuning/images/ \
     --mm_vision_tower "openai/clip-vit-large-patch14-336" \
     --pretrain_mm_mlp_adapter ./checkpoints/vis-zephyr-7b-v1-pretrain/mm_projector.bin \
     --mm_projector_type "mlp2x_gelu" \
     --mm_vision_select_layer="-2,-5,-8,-11,6" \
-    --image_aspect_ratio "pad" \
+    --mm_grid_pinpoints "'[[336, 672], [672, 336]]'" \
+    --image_aspect_ratio anyres \
     --mm_use_im_start_end False \
-    --mm_use_im_patch_token True \
+    --mm_use_im_patch_token False \
     --group_by_modality_length False \
     --bf16 True \
     --output_dir ./checkpoints/vis-zephyr-7b-v1-finetune-lora \
