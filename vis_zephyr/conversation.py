@@ -80,7 +80,7 @@ class Conversation:
 #system="A chat between a curious user and an artificial intelligence assistant. "
 #       "The assistant gives helpful, detailed, and polite answers to the user's questions.",
 conv_zephyr_v1 = Conversation(
-    system = "You are an AI assistant specialized in Visual Commonsense Reasoning and able to understand the visual content that the user provides,"
+    system = "You are an AI assistant specialized in Visual Commonsense Reasoning and able to understand the visual content that the user provides.\n"
              "Given an image and a question, your task is to provide an accurate answer, followed by a concise, logical explanation of your reasoning based on visual cues and common sense. Your response must clearly separate the answer and the explanation.",
     roles = ("user", "assistant"),
     messages = (),
@@ -92,15 +92,14 @@ conv_zephyr_v1 = Conversation(
 )
 
 conv_zephyr_vcr = Conversation(
-    system = "You are an AI assistant specialized in Visual Commonsense Reasoning and able to understand the visual content that the user provides,"
-             "Given an image and a question, your task is to provide an accurate answer in the format 'Answer is: \{A, B, C or D\}, and your explanation', followed by a concise, logical explanation of your reasoning based on visual cues and common sense. Your response must clearly separate the answer and the explanation.",
+    system = "You are an AI assistant specialized in Visual Commonsense Reasoning. Your task is to analyze the provided visual content along with a question. Subsequently, select the most appropriate answer from the given choices. Your answer must be in the format 'Answer is: {A, B, C or D}'.",
     roles = ("user", "assistant"),
     messages = (),
     offset = 0,
     separator_style = SeparatorStyle.ZEPHYR,
     separator_01 = "</s>",
     separator_02 = None,
-    version = "zephyr_v1",
+    version = "zephyr_vcr",
 )
 
 conv_zephyr_plain = Conversation(

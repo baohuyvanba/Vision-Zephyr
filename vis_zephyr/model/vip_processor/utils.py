@@ -150,7 +150,7 @@ def get_all_question_answer(all_corpus, shape_and_color, class_names, answer_typ
 
 def get_question(question, all_choices, use_multiplechoice_q, why_question = False, no_image = False):
     """
-    Randomly selects a question from a predefined list.
+    Randomly selects a question-prefix from a predefined list.
     """
     if why_question:
         question_prompt = random.choice(WHY_QUESTIONS)
@@ -158,6 +158,7 @@ def get_question(question, all_choices, use_multiplechoice_q, why_question = Fal
         image_str = '' if no_image else '<image>\n'
         question_prompt = image_str + random.choice(QUESTION_PREFIXES) + question
     
+    #Multiple Choice Question mode
     if use_multiplechoice_q:
         all_options = ''
         for choice_idx, choice in enumerate(all_choices):
@@ -168,13 +169,13 @@ def get_question(question, all_choices, use_multiplechoice_q, why_question = Fal
                 all_options += ' '
             else:
                 all_options += ''
-        
+    
         question_prompt += " " + random.choice(OPTIONS_PREFIXES) + all_options
     
     return question_prompt
 
 def get_answer(choice, content, use_multiplechoice_r):
-    choice = answer_map[choice]
+    choice       = answer_map[choice]
     choice_upper = choice.upper()
 
     if use_multiplechoice_r:
