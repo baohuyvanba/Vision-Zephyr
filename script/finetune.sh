@@ -30,9 +30,9 @@ deepspeed vis_zephyr/train/train_mem.py \
     --bf16 True \
     --output_dir ./checkpoints/vis-zephyr-7b-v1-finetune-lora \
     --num_train_epochs 1 \
-    --per_device_train_batch_size 16 \
+    --per_device_train_batch_size 4 \
     --per_device_eval_batch_size 4 \
-    --gradient_accumulation_steps 1 \
+    --gradient_accumulation_steps 4 \
     --save_strategy "steps" \
     --save_steps 5000 \
     --save_total_limit 1 \
@@ -42,7 +42,7 @@ deepspeed vis_zephyr/train/train_mem.py \
     --lr_scheduler_type "cosine" \
     --logging_steps 1 \
     --tf32 True \
-    --model_max_length 2048 \
+    --model_max_length 1024 \
     --gradient_checkpointing True \
     --dataloader_num_workers 4 \
     --lazy_preprocess True \
