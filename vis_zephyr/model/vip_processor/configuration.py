@@ -83,8 +83,7 @@ OPTIONS_PREFIXES = [
 
 #Why Questions to ask model generate Rationale
 WHY_QUESTIONS = [
-    'why?',
-    'why',
+    'Why?',
     "What's the rationale for your decision?",
     'What led you to that conclusion?',
     "What's the reasoning behind your opinion?",
