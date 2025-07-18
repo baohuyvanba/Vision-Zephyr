@@ -197,22 +197,28 @@ def create_question_qar_direct(source, shapes_list, color_list):
     return shape_and_color, all_instance_index, conversations
 
 def create_question_qa_qar(source, shapes_list, color_list):
+    # --- Data Augmentation --- by randomly choosing multiple choice or answer generation
     use_multiplechoice_q = random.random() < 0.5
     use_multiplechoice_r = random.random() < 0.5
 
     question = [source['question']]
+
     if not use_multiplechoice_q:
-        answer = [source['answer_choices'][source['answer_label']]]
+        #Get true answer
+        answer = [ source['answer_choices'][source['answer_label']] ]
     else:
+        #Get all answers
         answer = source['answer_choices']
 
     if not use_multiplechoice_r:
-        rationale = [source['rationale_choices'][source['rationale_label']]]
+        #Get true rationale
+        rationale = [ source['rationale_choices'][source['rationale_label']] ]
     else:
+        #Get all rationales
         rationale = source['rationale_choices']
     
     #Get all instances from the question and answer
-    all_corpus = question + answer + rationale
+    all_corpus         = question + answer + rationale
     all_instance_index = get_all_instance(all_corpus)
 
     #Get instances's shape+color
@@ -250,7 +256,8 @@ def create_question_qa_qar(source, shapes_list, color_list):
     )
     shape_and_color_vip_image_all.extend(shape_and_color_vip_img)
 
-    #Question for Q
+    # --- Build Conversation Prompts ---
+    #Question for QA
     question_prompt = get_question(
         question             = question,
         all_choices          = answer,
@@ -262,9 +269,10 @@ def create_question_qa_qar(source, shapes_list, color_list):
     q_answer_prompt = get_answer(
         choice               = answer_idx,
         content              = answer[answer_idx],
-        use_multiplechoice_r = use_multiplechoice_q)
+        use_multiplechoice_r = use_multiplechoice_q #multiple choice mode
+    )
 
-    #Question for R
+    #Question for QR
     rationale_prompt = get_question(
         question             = None,
         all_choices          = rationale,

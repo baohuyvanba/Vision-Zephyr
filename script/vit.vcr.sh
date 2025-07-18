@@ -18,23 +18,23 @@ deepspeed vis_zephyr/train/train_mem.py \
     --mm_projector_lr 2e-3 \
     --model_name_or_path "HuggingFaceH4/zephyr-7b-beta" \
     --version zephyr_v1 \
-    --data_path ./playground/data/pretrain/vcr.json \
-    --image_folder ./playground/data/pretrain/images/ \
+    --data_path ./playground/data/tuning/vcr.json \
+    --image_folder ./playground/data/tuning/images/ \
     --mm_vision_tower "openai/clip-vit-large-patch14-336" \
     --pretrain_mm_mlp_adapter ./checkpoints/vis-zephyr-7b-v1-pretrain/mm_projector.bin \
     --mm_projector_type mlp2x_gelu \
     --mm_vision_select_layer="-2,-5,-8,-11,6" \
-    --mm_grid_pinpoints "'[[336, 672], [672, 336], [336, 1008], [1008, 336]]'" \
+    --mm_grid_pinpoints "'[[336, 672], [672, 336]]'" \
     --mm_use_im_start_end False \
     --mm_use_im_patch_token False \
     --group_by_modality_length False \
     --image_aspect_ratio anyres \
     --bf16 True \
-    --output_dir ./checkpoints/vis-zephyr-7b-v1-pretrain-vcr \
+    --output_dir ./checkpoints/vis-zephyr-7b-v1-tune-vcr \
     --num_train_epochs 1 \
-    --per_device_train_batch_size 16 \
+    --per_device_train_batch_size 4 \
     --per_device_eval_batch_size 4 \
-    --gradient_accumulation_steps 1 \
+    --gradient_accumulation_steps 2 \
     --save_strategy "steps" \
     --save_steps 24000 \
     --save_total_limit 1 \
