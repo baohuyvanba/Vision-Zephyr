@@ -165,8 +165,8 @@ async def chat(request: Request):
                         images=image_tensor,
                         images_size=[images_size],
                         do_sample=True,
-                        temperature=0.2,
-                        max_new_tokens=512,
+                        temperature=0.1,
+                        max_new_tokens=256,
                         streamer=streamer,
                         use_cache=True,
                         stopping_criteria=[stopping_criteria]
