@@ -234,8 +234,10 @@ class VisZephyrMetaForCausalLM(ABC):
 
         #Remove padding if attention_mask is provided
         input_ids  = [cur_input_ids[cur_attention_mask] for cur_input_ids, cur_attention_mask in zip(input_ids, attention_mask)]
+        #input_ids = [cur_input_ids[cur_attention_mask.to(cur_input_ids.device)] for cur_input_ids, cur_attention_mask in zip(input_ids, attention_mask)]
             #Input ids are now is list of tensors with shape (batch_size, seq_length)
         labels     = [curent_labels[cur_attention_mask] for curent_labels, cur_attention_mask in zip(labels, attention_mask)]
+        #labels = [curent_labels[cur_attention_mask.to(curent_labels.device)] for curent_labels, cur_attention_mask in zip(labels, attention_mask)]
 
         for batch_idx, cur_input_ids in enumerate(input_ids):
             #Check if there is an 'IMAGE_TOKEN_INDEX' (placeholder) in the current input_ids

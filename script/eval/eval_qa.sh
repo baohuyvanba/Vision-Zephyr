@@ -5,7 +5,7 @@ set -euo pipefail
 NUM_GPUS=4
 
 # THÔNG SỐ CHUNG
-MODEL_BASE"HuggingFaceH4/zephyr-7b-beta"
+MODEL_BASE="HuggingFaceH4/zephyr-7b-beta"
 MODEL_PATH="./checkpoints/vis-zephyr-7b-v1-"
 IMAGE_FOLDER="./playground/data/finetune/images/"
 QUESTION_FILE="./playground/data/vcr-val.json"
