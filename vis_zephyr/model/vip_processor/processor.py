@@ -132,11 +132,11 @@ def create_question_qa_direct(source, shapes_list, color_list):
 
 def create_question_qar_direct(source, shapes_list, color_list):
     question       = [source['question']]
-    orginal_answer = [source['answer_choices'][source['answer_label']]]
+    original_answer = [source['answer_choices'][source['answer_label']]]
     rationale      = source['rationale_choices']
 
     #Get all instances from the question and answer
-    all_corpus = question + orginal_answer + rationale
+    all_corpus = question + original_answer + rationale
     all_instance_index = get_all_instance(all_corpus)
 
     #Get instances's shape+color 
