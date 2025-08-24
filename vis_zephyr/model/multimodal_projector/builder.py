@@ -87,9 +87,8 @@ class QFormer(nn.Module):
         queries = processed_inputs[:, :self.num_queries, :]
         
         for blk in self.blocks[1:]:
-                queries = blk(queries, features)
+            queries = blk(queries, features)
 
-        #return self.norm(queries[:, :self.num_queries, :])
         return self.norm(queries)
 
 #====================================================================================================================================
